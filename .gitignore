@@ -1,0 +1,68 @@
+# ============================
+# Python
+# ============================
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+
+# ============================
+# Môi trường ảo (Virtual Env)
+# ============================
+venv/
+env/
+tf_gpu/
+.venv/
+
+# ============================
+# Streamlit & Environments
+# ============================
+.streamlit/
+.env
+
+# ============================
+# Dữ liệu (Data files)
+# ============================
+*.csv
+
+# ============================
+# Model đã train & Checkpoints
+# ============================
+models/
+savemodels/
+*.keras
+*.h5
+*.pkl
+checkpoint/
+.ipynb_checkpoints/
+
+# ============================
+# IDE & Editor
+# ============================
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ============================
+# Hệ điều hành
+# ============================
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# ============================
+# Agents / Gemini config
+# ============================
+.agent/
+.agents/
+plans/
+skills-lock.json
+
+# ============================
+# Logs & Temp
+# ============================
+*.log
+*.tmp
+*.bak
