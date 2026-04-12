@@ -58,6 +58,11 @@ ORDER_DEVIATION = 20             # Độ trượt giá cho phép (points)
 PIP_MULTIPLIER = 10              # 1 pip = 10 points cho XAUUSD
 XAUUSD_POINT = 0.01              # Point value cho XAUUSD
 
+# ========== MODEL MODE ==========
+MODEL_MODE_DUAL = "dual"              # Dùng cả M5 + H1 (đồng thuận)
+MODEL_MODE_SINGLE_M5 = "single_m5"   # Chỉ dùng M5
+DEFAULT_MODEL_MODE = MODEL_MODE_DUAL  # Chế độ mặc định
+
 # ========== TRAILING STOP LOSS ==========
 DEFAULT_TRAILING_SL_LEVELS = [
     (100, 5),                    # Khi lời 100 pips → SL = +5 pips

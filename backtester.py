@@ -14,6 +14,7 @@ from config import (
     MIN_CONFIDENCE, XAUUSD_POINT, PIP_MULTIPLIER,
     LOOKBACK, TRAIN_RATIO,
     BACKTEST_INITIAL_EQUITY, BACKTEST_PROFIT_MULTIPLIER,
+    MODEL_MODE_DUAL, MODEL_MODE_SINGLE_M5, DEFAULT_MODEL_MODE,
 )
 
 
@@ -63,7 +64,8 @@ class Backtester:
         sl_pips: float = DEFAULT_SL_PIPS,
         tp_pips: float = DEFAULT_TP_PIPS,
         min_confidence: float = MIN_CONFIDENCE,
-        point: float = XAUUSD_POINT  # Point value for XAUUSD
+        point: float = XAUUSD_POINT,
+        model_mode: str = DEFAULT_MODEL_MODE
     ):
         """
         Args:
@@ -73,6 +75,7 @@ class Backtester:
             tp_pips: Take profit in pips
             min_confidence: Minimum confidence để vào lệnh
             point: Point value của symbol (0.01 for gold)
+            model_mode: Chế độ model ("dual" hoặc "single_m5")
         """
         self.trainer = trainer
         self.lot = lot
@@ -80,7 +83,8 @@ class Backtester:
         self.tp_pips = tp_pips
         self.min_confidence = min_confidence
         self.point = point
-        self.pip_value = PIP_MULTIPLIER * point  # 1 pip = PIP_MULTIPLIER points for gold
+        self.pip_value = PIP_MULTIPLIER * point
+        self.model_mode = model_mode
     
     def run_backtest(
         self,
@@ -183,7 +187,9 @@ class Backtester:
             h1_subset = h1_df[h1_df['Time'] <= current_time].tail(lookback + 10)
             m5_subset = m5_df.iloc[max(0, i - lookback - 10):i + 1]
             
-            if len(h1_subset) < lookback or len(m5_subset) < lookback:
+            if len(h1_subset) < lookback and self.model_mode == MODEL_MODE_DUAL:
+                continue
+            if len(m5_subset) < lookback:
                 continue
             
             # Check existing trade for TP/SL
@@ -241,7 +247,11 @@ class Backtester:
             # Generate signal if no open trade
             if current_trade is None:
                 try:
-                    prediction = self.trainer.predict(h1_subset, m5_subset)
+                    prediction = self.trainer.predict(
+                        h1_subset if self.model_mode == MODEL_MODE_DUAL else None,
+                        m5_subset,
+                        model_mode=self.model_mode
+                    )
                     
                     if 'combined' in prediction:
                         signal = prediction['combined'].get('signal')

@@ -22,6 +22,7 @@ if gpus:
 from config import (
     LOOKBACK, SCALER_WINDOW, EPOCHS, BATCH_SIZE,
     TRAIN_RATIO, MODELS_DIR,
+    MODEL_MODE_DUAL, MODEL_MODE_SINGLE_M5, DEFAULT_MODEL_MODE,
 )
 from data_processor import DataProcessor
 from lstm_model import LSTMModel
@@ -32,13 +33,15 @@ class Trainer:
     Quản lý việc huấn luyện mô hình cho các timeframe khác nhau
     """
     
-    def __init__(self, models_dir: str = MODELS_DIR):
+    def __init__(self, models_dir: str = MODELS_DIR, model_mode: str = DEFAULT_MODEL_MODE):
         """
         Args:
             models_dir: Thư mục lưu models
+            model_mode: Chế độ model ("dual" hoặc "single_m5")
         """
         self.base_dir = os.path.dirname(os.path.abspath(__file__))
         self.models_dir = os.path.join(self.base_dir, models_dir)
+        self.model_mode = model_mode
         
         # Tạo thư mục nếu chưa tồn tại (fix Windows compatibility)
         if not os.path.exists(self.models_dir):
@@ -341,22 +344,25 @@ class Trainer:
     def predict(
         self,
         h1_data: Optional[np.ndarray] = None,
-        m5_data: Optional[np.ndarray] = None
+        m5_data: Optional[np.ndarray] = None,
+        model_mode: Optional[str] = None
     ) -> Dict:
         """
-        Dự đoán sử dụng cả 2 mô hình
+        Dự đoán sử dụng mô hình theo chế độ đã chọn
         
         Args:
             h1_data: DataFrame dữ liệu H1 (cần ít nhất 48 nến)
             m5_data: DataFrame dữ liệu M5 (cần ít nhất 48 nến)
+            model_mode: Chế độ model (None = dùng self.model_mode)
             
         Returns:
             Dict kết quả dự đoán
         """
+        mode = model_mode or self.model_mode
         results = {}
         
-        # Dự đoán H1
-        if self.h1_model and h1_data is not None:
+        # Dự đoán H1 (chỉ khi mode dual)
+        if mode == MODEL_MODE_DUAL and self.h1_model and h1_data is not None:
             try:
                 X_h1 = self.h1_processor.get_latest_sequence(h1_data)
                 direction, prob = self.h1_model.predict_single(X_h1)
@@ -379,26 +385,37 @@ class Trainer:
             except Exception as e:
                 results['M5'] = {'error': str(e)}
         
-        # Kết hợp dự đoán
-        if 'H1' in results and 'M5' in results:
-            h1_dir = results['H1'].get('direction')
-            m5_dir = results['M5'].get('direction')
-            
-            if h1_dir == 'UP' and m5_dir == 'UP':
+        # Kết hợp dự đoán theo mode
+        if mode == MODEL_MODE_SINGLE_M5:
+            # Single M5: signal trực tiếp từ M5
+            if 'M5' in results and 'direction' in results['M5']:
+                m5_dir = results['M5']['direction']
+                m5_prob = results['M5']['probability']
                 results['combined'] = {
-                    'signal': 'BUY',
-                    'confidence': (results['H1']['probability'] + results['M5']['probability']) / 2
+                    'signal': 'BUY' if m5_dir == 'UP' else 'SELL',
+                    'confidence': m5_prob
                 }
-            elif h1_dir == 'DOWN' and m5_dir == 'DOWN':
-                results['combined'] = {
-                    'signal': 'SELL',
-                    'confidence': (results['H1']['probability'] + results['M5']['probability']) / 2
-                }
-            else:
-                results['combined'] = {
-                    'signal': 'WAIT',
-                    'reason': 'Hai mô hình không cùng xu hướng'
-                }
+        else:
+            # Dual: cần cả 2 model đồng thuận
+            if 'H1' in results and 'M5' in results:
+                h1_dir = results['H1'].get('direction')
+                m5_dir = results['M5'].get('direction')
+                
+                if h1_dir == 'UP' and m5_dir == 'UP':
+                    results['combined'] = {
+                        'signal': 'BUY',
+                        'confidence': (results['H1']['probability'] + results['M5']['probability']) / 2
+                    }
+                elif h1_dir == 'DOWN' and m5_dir == 'DOWN':
+                    results['combined'] = {
+                        'signal': 'SELL',
+                        'confidence': (results['H1']['probability'] + results['M5']['probability']) / 2
+                    }
+                else:
+                    results['combined'] = {
+                        'signal': 'WAIT',
+                        'reason': 'Hai mô hình không cùng xu hướng'
+                    }
         
         return results
 

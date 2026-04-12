@@ -20,6 +20,7 @@ from config import (
     TRADE_LOG_MAX_MESSAGES, REALTIME_DATA_COUNT,
     MAX_TRADE_LOG_DISPLAY, AUTO_TRADE_INTERVAL, UI_REFRESH_INTERVAL,
     PREDICTION_THRESHOLD,
+    MODEL_MODE_DUAL, MODEL_MODE_SINGLE_M5, DEFAULT_MODEL_MODE,
 )
 from data_processor import DataProcessor
 from lstm_model import LSTMModel
@@ -130,13 +131,19 @@ def init_session_state():
         st.session_state.last_signal = None
     if 'trade_messages' not in st.session_state:
         st.session_state.trade_messages = []
+    if 'model_mode' not in st.session_state:
+        st.session_state.model_mode = DEFAULT_MODEL_MODE
 
 
 def load_models():
     """Load các mô hình đã train"""
     trainer = st.session_state.trainer
     h1_loaded, m5_loaded = trainer.load_models()
-    st.session_state.models_loaded = h1_loaded and m5_loaded
+    # models_loaded phụ thuộc vào mode
+    if st.session_state.model_mode == MODEL_MODE_SINGLE_M5:
+        st.session_state.models_loaded = m5_loaded
+    else:
+        st.session_state.models_loaded = h1_loaded and m5_loaded
     return h1_loaded, m5_loaded
 
 
@@ -236,17 +243,24 @@ def display_positions(positions):
 def realtime_predict_and_trade(trader: MT5Trader, auto_execute: bool = False):
     """Dự đoán realtime và thực hiện giao dịch"""
     results = {}
+    model_mode = st.session_state.model_mode
     
     # Lấy dữ liệu realtime
-    # Cần >= scaler_window (300) nến để sliding window scale chính xác
-    h1_df = trader.get_realtime_data("H1", REALTIME_DATA_COUNT)
     m5_df = trader.get_realtime_data("M5", REALTIME_DATA_COUNT)
     
-    if h1_df is None or m5_df is None:
-        return None, "Không lấy được dữ liệu MT5"
+    if model_mode == MODEL_MODE_DUAL:
+        h1_df = trader.get_realtime_data("H1", REALTIME_DATA_COUNT)
+    else:
+        h1_df = None  # Single M5: không cần H1
+    
+    if m5_df is None:
+        return None, "Không lấy được dữ liệu M5 từ MT5"
+    
+    if model_mode == MODEL_MODE_DUAL and h1_df is None:
+        return None, "Không lấy được dữ liệu H1 từ MT5"
     
     # Dự đoán
-    results = st.session_state.trainer.predict(h1_df, m5_df)
+    results = st.session_state.trainer.predict(h1_df, m5_df, model_mode=model_mode)
     
     # Thực hiện giao dịch nếu auto_execute
     if auto_execute and 'combined' in results:
@@ -261,8 +275,9 @@ def realtime_predict_and_trade(trader: MT5Trader, auto_execute: bool = False):
         
         # In ra terminal chi tiết
         print(f"\n{'='*50}")
-        print(f"📊 PREDICTION @ {datetime.now().strftime('%H:%M:%S')}")
-        print(f"   H1: {h1_dir} ({h1_prob*100:.1f}%)")
+        print(f"📊 PREDICTION @ {datetime.now().strftime('%H:%M:%S')} [{model_mode}]")
+        if model_mode == MODEL_MODE_DUAL:
+            print(f"   H1: {h1_dir} ({h1_prob*100:.1f}%)")
         print(f"   M5: {m5_dir} ({m5_prob*100:.1f}%)")
         print(f"   Combined: {signal} (Confidence: {confidence*100:.1f}%)" if confidence else f"   Combined: {signal}")
         
@@ -298,6 +313,30 @@ def main():
         # Symbol input
         symbol = st.text_input("Symbol", value=DEFAULT_SYMBOL)
         
+        st.divider()
+        
+        # ========== MODEL MODE ==========
+        st.subheader("🎯 Model Mode")
+        
+        model_mode = st.radio(
+            "Chế độ dự đoán",
+            options=[MODEL_MODE_DUAL, MODEL_MODE_SINGLE_M5],
+            format_func=lambda x: "Dual (M5 + H1) — Đồng thuận" if x == MODEL_MODE_DUAL else "Single (M5 Only)",
+            index=0 if st.session_state.model_mode == MODEL_MODE_DUAL else 1,
+            help="Dual: cần cả 2 model cùng hướng mới vào lệnh. Single: chỉ dùng M5."
+        )
+        st.session_state.model_mode = model_mode
+        
+        # Cập nhật models_loaded theo mode mới
+        trainer = st.session_state.trainer
+        if model_mode == MODEL_MODE_SINGLE_M5:
+            st.session_state.models_loaded = trainer.m5_model is not None
+        else:
+            st.session_state.models_loaded = (trainer.h1_model is not None and trainer.m5_model is not None)
+        
+        # Cập nhật trainer mode
+        trainer.model_mode = model_mode
+
         st.divider()
         
         # ========== MT5 CONNECTION ==========
@@ -593,6 +632,8 @@ def main():
         trader.tp_pips = tp_pips
         trader.max_positions = max_positions
         trader.min_confidence = min_confidence
+        # Sync model mode
+        trader.model_mode = model_mode
         
         # ========== TRAILING SL THREAD CONTROL ==========
         if enable_trailing_sl and not trader._trailing_thread_running:
@@ -607,9 +648,11 @@ def main():
             # Bật auto-trade thread
             trader.start_auto_trade_thread(
                 trainer=st.session_state.trainer,
-                interval=trade_interval
+                interval=trade_interval,
+                model_mode=model_mode
             )
-            add_trade_message(f"🤖 Bật Auto Trading (interval: {trade_interval}s)", "success")
+            mode_label = "Dual (M5+H1)" if model_mode == MODEL_MODE_DUAL else "Single (M5)"
+            add_trade_message(f"🤖 Bật Auto Trading (interval: {trade_interval}s, mode: {mode_label})", "success")
         elif not auto_trading and trader._auto_trade_thread_running:
             # Tắt auto-trade thread
             trader.stop_auto_trade_thread()
@@ -685,7 +728,9 @@ def main():
     
     with col1:
         st.subheader("📊 Mô hình H1")
-        if st.session_state.h1_metrics:
+        if model_mode == MODEL_MODE_SINGLE_M5:
+            st.info("⚠️ Chế độ Single M5 — không sử dụng H1")
+        elif st.session_state.h1_metrics:
             metrics = st.session_state.h1_metrics
             st.metric("Accuracy", f"{metrics['accuracy']*100:.2f}%")
             st.metric("Precision", f"{metrics['precision']*100:.2f}%")
@@ -726,7 +771,7 @@ def main():
                     if error:
                         st.error(error)
                     elif results:
-                        if 'H1' in results and 'direction' in results['H1']:
+                        if model_mode == MODEL_MODE_DUAL and 'H1' in results and 'direction' in results['H1']:
                             display_prediction_box(
                                 results['H1']['direction'],
                                 results['H1']['probability'],
@@ -749,16 +794,20 @@ def main():
                             )
                             st.session_state.last_signal = results['combined']
         
-        elif st.session_state.trainer.h1_model and st.session_state.trainer.m5_model:
+        elif st.session_state.models_loaded:
             # Fallback to CSV prediction
-            if h1_path and m5_path:
+            has_required_files = m5_path is not None
+            if model_mode == MODEL_MODE_DUAL:
+                has_required_files = has_required_files and h1_path is not None
+            
+            if has_required_files:
                 if st.button("🔮 Dự đoán (CSV)", type="primary", width='stretch'):
                     try:
-                        h1_df = pd.read_csv(h1_path)
                         m5_df = pd.read_csv(m5_path)
-                        results = st.session_state.trainer.predict(h1_df, m5_df)
+                        h1_df = pd.read_csv(h1_path) if model_mode == MODEL_MODE_DUAL else None
+                        results = st.session_state.trainer.predict(h1_df, m5_df, model_mode=model_mode)
                         
-                        if 'H1' in results and 'direction' in results['H1']:
+                        if model_mode == MODEL_MODE_DUAL and 'H1' in results and 'direction' in results['H1']:
                             display_prediction_box(
                                 results['H1']['direction'],
                                 results['H1']['probability'],
@@ -782,7 +831,10 @@ def main():
                     except Exception as e:
                         st.error(f"❌ Lỗi dự đoán: {e}")
         else:
-            st.info("Cần train hoặc load cả 2 model")
+            if model_mode == MODEL_MODE_SINGLE_M5:
+                st.info("Cần train hoặc load model M5")
+            else:
+                st.info("Cần train hoặc load cả 2 model")
     
     st.divider()
     
@@ -871,7 +923,8 @@ def main():
         with auto_col1:
             st.markdown("### 🤖 Auto Trading đang chạy...")
             trader = st.session_state.trader
-            st.caption(f"Bot interval: {trader._auto_trade_interval if hasattr(trader, '_auto_trade_interval') else AUTO_TRADE_INTERVAL}s | UI refresh: {ui_refresh}s")
+            mode_label = "Dual (M5+H1)" if trader.model_mode == MODEL_MODE_DUAL else "Single (M5)"
+            st.caption(f"Mode: {mode_label} | Bot interval: {trader._auto_trade_interval if hasattr(trader, '_auto_trade_interval') else AUTO_TRADE_INTERVAL}s | UI refresh: {ui_refresh}s")
         
         with auto_col2:
             if st.button("⏹️ Dừng", type="secondary", width='stretch'):
@@ -892,7 +945,10 @@ def main():
             elif signal == 'SELL':
                 st.error(f"🔻 SELL | Confidence: {confidence*100:.1f}% | @ {sig_time}")
             else:
-                st.info(f"⏸️ WAIT | H1: {last_signal.get('h1_dir')} M5: {last_signal.get('m5_dir')} | @ {sig_time}")
+                if last_signal.get('model_mode') == MODEL_MODE_DUAL:
+                    st.info(f"⏸️ WAIT | H1: {last_signal.get('h1_dir')} M5: {last_signal.get('m5_dir')} | @ {sig_time}")
+                else:
+                    st.info(f"⏸️ WAIT | M5: {last_signal.get('m5_dir')} | @ {sig_time}")
         
         # Hiển thị log từ auto-trade thread
         auto_messages = st.session_state.trader.get_auto_messages(MAX_TRADE_LOG_DISPLAY)
@@ -958,12 +1014,16 @@ def main():
             run_backtest = st.button("🚀 Chạy Backtest", type="primary", width='stretch')
         
         with bt_col2:
-            if run_backtest and h1_path and m5_path:
+            bt_has_files = m5_path is not None
+            if model_mode == MODEL_MODE_DUAL:
+                bt_has_files = bt_has_files and h1_path is not None
+            
+            if run_backtest and bt_has_files:
                 with st.spinner("Đang chạy backtest..."):
                     try:
                         # Load data
-                        h1_df = pd.read_csv(h1_path)
                         m5_df = pd.read_csv(m5_path)
+                        h1_df = pd.read_csv(h1_path) if model_mode == MODEL_MODE_DUAL else pd.DataFrame()
                         
                         # Determine parameters based on mode
                         if bt_mode == "Tùy chọn ngày":
@@ -985,7 +1045,8 @@ def main():
                             lot=bt_lot,
                             sl_pips=bt_sl,
                             tp_pips=bt_tp,
-                            min_confidence=bt_min_conf
+                            min_confidence=bt_min_conf,
+                            model_mode=model_mode
                         )
                         result = backtester.run_backtest(
                             h1_df, m5_df,
@@ -1043,8 +1104,11 @@ def main():
                         
                     except Exception as e:
                         st.error(f"❌ Lỗi backtest: {e}")
-            elif not h1_path or not m5_path:
-                st.warning("Cần chọn file H1 và M5 để chạy backtest")
+            elif not bt_has_files:
+                if model_mode == MODEL_MODE_SINGLE_M5:
+                    st.warning("Cần chọn file M5 để chạy backtest")
+                else:
+                    st.warning("Cần chọn file H1 và M5 để chạy backtest")
             else:
                 st.info("Nhấn 'Chạy Backtest' để bắt đầu mô phỏng giao dịch trên dữ liệu lịch sử")
     else:

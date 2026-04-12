@@ -17,6 +17,7 @@ from config import (
     ORDER_DEVIATION, PIP_MULTIPLIER,
     DEFAULT_TRAILING_SL_LEVELS, TRAILING_CHECK_INTERVAL,
     AUTO_TRADE_INTERVAL, REALTIME_DATA_COUNT,
+    MODEL_MODE_DUAL, MODEL_MODE_SINGLE_M5, DEFAULT_MODEL_MODE,
 )
 
 
@@ -78,6 +79,7 @@ class MT5Trader:
         self._trainer = None  # Trainer instance sẽ được set khi start
         self.auto_trade_messages = []  # Thread-safe message log
         self._auto_trade_last_signal = None  # Tín hiệu mới nhất
+        self.model_mode = DEFAULT_MODEL_MODE  # Chế độ model
     
     def connect(self) -> Tuple[bool, str]:
         """
@@ -754,26 +756,30 @@ class MT5Trader:
         with self._auto_trade_lock:
             return list(self.auto_trade_messages[-limit:])
     
-    def start_auto_trade_thread(self, trainer, interval: float = AUTO_TRADE_INTERVAL):
+    def start_auto_trade_thread(self, trainer, interval: float = AUTO_TRADE_INTERVAL, model_mode: str = None):
         """
         Bắt đầu thread auto trading
         
         Args:
             trainer: Trainer instance (đã load models)
             interval: Thời gian giữa mỗi lần kiểm tra (giây)
+            model_mode: Chế độ model (None = dùng self.model_mode)
         """
         if self._auto_trade_thread and self._auto_trade_thread.is_alive():
             return  # Đã chạy rồi
         
         self._trainer = trainer
         self._auto_trade_interval = interval
+        if model_mode is not None:
+            self.model_mode = model_mode
         self.is_auto_trading = True
         self._auto_trade_thread = threading.Thread(
             target=self._auto_trade_loop, daemon=True
         )
         self._auto_trade_thread.start()
-        self._add_auto_message(f"🤖 Auto Trading started (interval: {interval}s)", "success")
-        print(f"🤖 Auto Trading thread started (interval: {interval}s)")
+        mode_label = "Dual (M5+H1)" if self.model_mode == MODEL_MODE_DUAL else "Single (M5)"
+        self._add_auto_message(f"🤖 Auto Trading started (interval: {interval}s, mode: {mode_label})", "success")
+        print(f"🤖 Auto Trading thread started (interval: {interval}s, mode: {mode_label})")
     
     def stop_auto_trade_thread(self):
         """Dừng thread auto trading"""
@@ -794,16 +800,24 @@ class MT5Trader:
         
         while self.is_auto_trading and self.connected:
             try:
-                # Lấy dữ liệu realtime
-                h1_df = self.get_realtime_data("H1", REALTIME_DATA_COUNT)
+                # Lấy dữ liệu realtime theo mode
                 m5_df = self.get_realtime_data("M5", REALTIME_DATA_COUNT)
                 
-                if h1_df is None or m5_df is None:
+                if self.model_mode == MODEL_MODE_DUAL:
+                    h1_df = self.get_realtime_data("H1", REALTIME_DATA_COUNT)
+                else:
+                    h1_df = None  # Single M5: không cần H1
+                
+                if m5_df is None:
+                    time.sleep(self._auto_trade_interval)
+                    continue
+                
+                if self.model_mode == MODEL_MODE_DUAL and h1_df is None:
                     time.sleep(self._auto_trade_interval)
                     continue
                 
                 # Dự đoán bằng trainer
-                results = self._trainer.predict(h1_df, m5_df)
+                results = self._trainer.predict(h1_df, m5_df, model_mode=self.model_mode)
                 
                 if 'combined' not in results:
                     time.sleep(self._auto_trade_interval)
@@ -825,13 +839,15 @@ class MT5Trader:
                         'confidence': confidence,
                         'h1_dir': h1_dir, 'h1_prob': h1_prob,
                         'm5_dir': m5_dir, 'm5_prob': m5_prob,
-                        'time': datetime.now().strftime("%H:%M:%S")
+                        'time': datetime.now().strftime("%H:%M:%S"),
+                        'model_mode': self.model_mode
                     }
                 
                 # In ra terminal
                 print(f"\n{'='*50}")
-                print(f"📊 PREDICTION @ {datetime.now().strftime('%H:%M:%S')}")
-                print(f"   H1: {h1_dir} ({h1_prob*100:.1f}%)")
+                print(f"📊 PREDICTION @ {datetime.now().strftime('%H:%M:%S')} [{self.model_mode}]")
+                if self.model_mode == MODEL_MODE_DUAL:
+                    print(f"   H1: {h1_dir} ({h1_prob*100:.1f}%)")
                 print(f"   M5: {m5_dir} ({m5_prob*100:.1f}%)")
                 if confidence:
                     print(f"   Combined: {signal} (Confidence: {confidence*100:.1f}%)")
