@@ -8,15 +8,13 @@ import pandas as pd
 from datetime import datetime
 from typing import Optional, Dict, List, Tuple
 import time
-import threading
 
 from config import (
     DEFAULT_SYMBOL, ALTERNATIVE_SYMBOLS,
     DEFAULT_LOT, DEFAULT_SL_PIPS, DEFAULT_TP_PIPS,
     MAX_POSITIONS, MIN_CONFIDENCE, MAGIC_NUMBER,
     ORDER_DEVIATION, PIP_MULTIPLIER,
-    DEFAULT_TRAILING_SL_LEVELS, TRAILING_CHECK_INTERVAL,
-    AUTO_TRADE_INTERVAL, REALTIME_DATA_COUNT,
+    DEFAULT_TRAILING_SL_LEVELS,
     MODEL_MODE_DUAL, MODEL_MODE_SINGLE_M5, DEFAULT_MODEL_MODE,
 )
 
@@ -69,16 +67,6 @@ class MT5Trader:
         # Trailing Stop Loss config
         self.trailing_sl_levels = trailing_sl_levels or list(DEFAULT_TRAILING_SL_LEVELS)
         self.trailing_sl_enabled = trailing_sl_enabled
-        self._trailing_thread = None
-        self._trailing_lock = threading.Lock()
-        
-        # Auto Trading thread
-        self._auto_trade_thread = None
-        self._auto_trade_lock = threading.Lock()
-        self.is_auto_trading = False
-        self._trainer = None  # Trainer instance sẽ được set khi start
-        self.auto_trade_messages = []  # Thread-safe message log
-        self._auto_trade_last_signal = None  # Tín hiệu mới nhất
         self.model_mode = DEFAULT_MODEL_MODE  # Chế độ model
     
     def connect(self) -> Tuple[bool, str]:
@@ -695,237 +683,7 @@ class MT5Trader:
             results.append(result_info)
         
         return results
-    
-    def start_trailing_thread(self):
-        """Bắt đầu thread trailing SL, kiểm tra mỗi 1 giây"""
-        if self._trailing_thread and self._trailing_thread.is_alive():
-            return  # Đã chạy rồi
-        
-        self.trailing_sl_enabled = True
-        self._trailing_thread = threading.Thread(
-            target=self._trailing_loop, daemon=True
-        )
-        self._trailing_thread.start()
-        print("📐 Trailing SL thread started (interval: 1s)")
-    
-    def stop_trailing_thread(self):
-        """Dừng thread trailing SL"""
-        self.trailing_sl_enabled = False
-        # Thread tự dừng vì check self.trailing_sl_enabled
-        print("⏹️ Trailing SL thread stopped")
-    
-    @property
-    def _trailing_thread_running(self) -> bool:
-        """Kiểm tra trailing thread có đang chạy không"""
-        return (self._trailing_thread is not None 
-                and self._trailing_thread.is_alive() 
-                and self.trailing_sl_enabled)
-    
-    def _trailing_loop(self):
-        """Vòng lặp chính của trailing thread — chạy mỗi 1 giây"""
-        while self.trailing_sl_enabled and self.connected:
-            try:
-                with self._trailing_lock:
-                    results = self.trailing_stop_loss()
-                for r in results:
-                    if r.get('modified'):
-                        print(f"📐 Trailing SL: #{r['ticket']} ({r['type']}) "
-                              f"lời {r['profit_pips']} pips → SL={r['new_sl']:.2f} "
-                              f"(level {r['level'][0]}→{r['level'][1]})")
-            except Exception as e:
-                print(f"⚠️ Trailing SL error: {e}")
-            time.sleep(TRAILING_CHECK_INTERVAL)
-        print("📐 Trailing SL thread exited")
-    
-    # ========== AUTO TRADING THREAD ==========
-    
-    def _add_auto_message(self, msg: str, msg_type: str = "info"):
-        """Thêm message vào log (thread-safe)"""
-        with self._auto_trade_lock:
-            self.auto_trade_messages.append({
-                'time': datetime.now().strftime("%H:%M:%S"),
-                'message': msg,
-                'type': msg_type
-            })
-            # Giữ tối đa 100 messages
-            if len(self.auto_trade_messages) > 100:
-                self.auto_trade_messages = self.auto_trade_messages[-100:]
-    
-    def get_auto_messages(self, limit: int = 20) -> List[Dict]:
-        """Lấy messages mới nhất (thread-safe)"""
-        with self._auto_trade_lock:
-            return list(self.auto_trade_messages[-limit:])
-    
-    def start_auto_trade_thread(self, trainer, interval: float = AUTO_TRADE_INTERVAL, model_mode: str = None):
-        """
-        Bắt đầu thread auto trading
-        
-        Args:
-            trainer: Trainer instance (đã load models)
-            interval: Thời gian giữa mỗi lần kiểm tra (giây)
-            model_mode: Chế độ model (None = dùng self.model_mode)
-        """
-        if self._auto_trade_thread and self._auto_trade_thread.is_alive():
-            return  # Đã chạy rồi
-        
-        self._trainer = trainer
-        self._auto_trade_interval = interval
-        if model_mode is not None:
-            self.model_mode = model_mode
-        self.is_auto_trading = True
-        self._auto_trade_thread = threading.Thread(
-            target=self._auto_trade_loop, daemon=True
-        )
-        self._auto_trade_thread.start()
-        mode_label = "Dual (M5+H1)" if self.model_mode == MODEL_MODE_DUAL else "Single (M5)"
-        self._add_auto_message(f"🤖 Auto Trading started (interval: {interval}s, mode: {mode_label})", "success")
-        print(f"🤖 Auto Trading thread started (interval: {interval}s, mode: {mode_label})")
-    
-    def stop_auto_trade_thread(self):
-        """Dừng thread auto trading"""
-        self.is_auto_trading = False
-        self._add_auto_message("⏹️ Auto Trading stopped", "info")
-        print("⏹️ Auto Trading thread stopped")
-    
-    @property
-    def _auto_trade_thread_running(self) -> bool:
-        """Kiểm tra auto trade thread có đang chạy không"""
-        return (self._auto_trade_thread is not None
-                and self._auto_trade_thread.is_alive()
-                and self.is_auto_trading)
-    
-    def _auto_trade_loop(self):
-        """Vòng lặp chính của auto trading — chạy trong background thread"""
-        print("🤖 Auto Trading loop started")
-        
-        while self.is_auto_trading and self.connected:
-            try:
-                # Lấy dữ liệu realtime theo mode
-                m5_df = self.get_realtime_data("M5", REALTIME_DATA_COUNT)
-                
-                if self.model_mode == MODEL_MODE_DUAL:
-                    h1_df = self.get_realtime_data("H1", REALTIME_DATA_COUNT)
-                else:
-                    h1_df = None  # Single M5: không cần H1
-                
-                if m5_df is None:
-                    time.sleep(self._auto_trade_interval)
-                    continue
-                
-                if self.model_mode == MODEL_MODE_DUAL and h1_df is None:
-                    time.sleep(self._auto_trade_interval)
-                    continue
-                
-                # Dự đoán bằng trainer
-                results = self._trainer.predict(h1_df, m5_df, model_mode=self.model_mode)
-                
-                if 'combined' not in results:
-                    time.sleep(self._auto_trade_interval)
-                    continue
-                
-                signal = results['combined'].get('signal')
-                confidence = results['combined'].get('confidence', 0)
-                
-                # Lấy chi tiết từng prediction
-                h1_dir = results.get('H1', {}).get('direction', 'N/A')
-                h1_prob = results.get('H1', {}).get('probability', 0)
-                m5_dir = results.get('M5', {}).get('direction', 'N/A')
-                m5_prob = results.get('M5', {}).get('probability', 0)
-                
-                # Cập nhật last signal (thread-safe)
-                with self._auto_trade_lock:
-                    self._auto_trade_last_signal = {
-                        'signal': signal,
-                        'confidence': confidence,
-                        'h1_dir': h1_dir, 'h1_prob': h1_prob,
-                        'm5_dir': m5_dir, 'm5_prob': m5_prob,
-                        'time': datetime.now().strftime("%H:%M:%S"),
-                        'model_mode': self.model_mode
-                    }
-                
-                # In ra terminal
-                print(f"\n{'='*50}")
-                print(f"📊 PREDICTION @ {datetime.now().strftime('%H:%M:%S')} [{self.model_mode}]")
-                if self.model_mode == MODEL_MODE_DUAL:
-                    print(f"   H1: {h1_dir} ({h1_prob*100:.1f}%)")
-                print(f"   M5: {m5_dir} ({m5_prob*100:.1f}%)")
-                if confidence:
-                    print(f"   Combined: {signal} (Confidence: {confidence*100:.1f}%)")
-                else:
-                    print(f"   Combined: {signal}")
-                
-                # Thực thi lệnh
-                if signal and signal != "WAIT":
-                    executed, msg = self.execute_signal(signal, confidence)
-                    
-                    if executed:
-                        print(f"   ✅ VÀO LỆNH: {msg}")
-                        self._add_auto_message(f"✅ {msg}", "success")
-                    else:
-                        print(f"   ℹ️ BỎ QUA: {msg}")
-                        self._add_auto_message(f"ℹ️ {msg}", "info")
-                else:
-                    print(f"   ⏸️ WAIT - không vào lệnh")
-                
-                print(f"{'='*50}")
-                
-            except Exception as e:
-                print(f"⚠️ Auto Trading error: {e}")
-                self._add_auto_message(f"⚠️ Error: {e}", "error")
-            
-            time.sleep(self._auto_trade_interval)
-        
-        print("🤖 Auto Trading loop exited")
-    
-    def get_last_signal(self) -> Optional[Dict]:
-        """Lấy tín hiệu mới nhất (thread-safe)"""
-        with self._auto_trade_lock:
-            return self._auto_trade_last_signal.copy() if self._auto_trade_last_signal else None
 
-
-# Singleton instance for Streamlit
-_trader_instance: Optional[MT5Trader] = None
-
-
-def get_trader(
-    symbol: str = DEFAULT_SYMBOL,
-    lot: float = DEFAULT_LOT,
-    sl_pips: float = DEFAULT_SL_PIPS,
-    tp_pips: float = DEFAULT_TP_PIPS,
-    max_positions: int = MAX_POSITIONS,
-    min_confidence: float = MIN_CONFIDENCE,
-    trailing_sl_levels: list = None,
-    trailing_sl_enabled: bool = False
-) -> MT5Trader:
-    """
-    Lấy hoặc tạo trader instance
-    """
-    global _trader_instance
-    
-    if _trader_instance is None:
-        _trader_instance = MT5Trader(
-            symbol=symbol,
-            lot=lot,
-            sl_pips=sl_pips,
-            tp_pips=tp_pips,
-            max_positions=max_positions,
-            min_confidence=min_confidence,
-            trailing_sl_levels=trailing_sl_levels,
-            trailing_sl_enabled=trailing_sl_enabled
-        )
-    else:
-        # Update params
-        _trader_instance.symbol = symbol
-        _trader_instance.lot = lot
-        _trader_instance.sl_pips = sl_pips
-        _trader_instance.tp_pips = tp_pips
-        _trader_instance.max_positions = max_positions
-        _trader_instance.min_confidence = min_confidence
-        # Update trailing config
-        if trailing_sl_levels is not None:
-            _trader_instance.trailing_sl_levels = trailing_sl_levels
-    
-    return _trader_instance
 
 
 if __name__ == "__main__":

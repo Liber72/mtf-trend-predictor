@@ -86,5 +86,10 @@ MAX_TRADE_LOG_DISPLAY = 10        # Số messages hiển thị trên UI
 AUTO_TRADE_INTERVAL = 0.5         # Khoảng thời gian giữa mỗi lần bot kiểm tra & vào lệnh (giây)
 UI_REFRESH_INTERVAL = 3           # Khoảng thời gian giao diện tự refresh hiển thị (giây)
 
+# ========== TCP COMMUNICATION ==========
+TCP_HOST = "127.0.0.1"            # Host cho TCP server (Bot)
+TCP_PORT = 5005                   # Port cho TCP server
+TCP_BUFFER_SIZE = 65536           # Kích thước buffer nhận dữ liệu (bytes)
+
 # ========== MODELS DIRECTORY ==========
 MODELS_DIR = "models"             # Thư mục lưu models
