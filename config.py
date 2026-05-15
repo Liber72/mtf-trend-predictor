@@ -6,7 +6,7 @@ Tập trung tất cả các hằng số (magic numbers) của dự án
 # ========== DATA PROCESSING ==========
 LOOKBACK = 48                    # Số nến nhìn lại để dự đoán
 STEP = 1                         # Bước nhảy giữa các sequences
-SCALER_WINDOW = 300              # Kích thước cửa sổ trượt cho MinMaxScaler
+SCALER_WINDOW = 226              # Kích thước cửa sổ trượt cho MinMaxScaler
 TRAIN_RATIO = 0.8                # Tỉ lệ dữ liệu train (0.8 = 80% train, 20% val)
 
 # ========== TECHNICAL INDICATORS ==========
@@ -32,17 +32,17 @@ FEATURE_COLUMNS = [
 # ========== LSTM MODEL ==========
 LSTM_UNITS = (128, 64)           # Số units cho 2 lớp LSTM
 DENSE_UNITS = 32                 # Số units cho lớp Dense ẩn
-DROPOUT_RATE = 0.3               # Tỉ lệ dropout
+DROPOUT_RATE = 0.3              # Tỉ lệ dropout
 LEARNING_RATE = 0.001            # Learning rate ban đầu
 N_FEATURES = 15                  # Số features đầu vào
 PREDICTION_THRESHOLD = 0.5       # Ngưỡng phân loại UP/DOWN
 
 # ========== TRAINING CALLBACKS ==========
 EPOCHS = 100                     # Số epochs mặc định
-BATCH_SIZE = 32                  # Batch size mặc định
-EARLY_STOPPING_PATIENCE = 15     # Patience cho EarlyStopping
+BATCH_SIZE = 256                  # Batch size mặc định
+EARLY_STOPPING_PATIENCE = 30     # Patience cho EarlyStopping
 REDUCE_LR_FACTOR = 0.5           # Hệ số giảm learning rate
-REDUCE_LR_PATIENCE = 5           # Patience cho ReduceLROnPlateau
+REDUCE_LR_PATIENCE = 15          # Patience cho ReduceLROnPlateau
 REDUCE_LR_MIN = 1e-6             # Learning rate tối thiểu
 
 # ========== TRADING ==========

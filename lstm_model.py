@@ -110,7 +110,7 @@ class LSTMModel:
             callbacks.append(
                 ModelCheckpoint(
                     filepath=model_path,
-                    monitor='val_accuracy',
+                    monitor='val_loss',
                     save_best_only=True,
                     verbose=1
                 )
@@ -153,6 +153,10 @@ class LSTMModel:
         print(f"Validation samples: {len(X_val)}")
         print(f"Epochs: {epochs}")
         print(f"Batch size: {batch_size}")
+        print(f"Dropout rate: {self.dropout_rate}")
+        print(f"Learning rate: {self.learning_rate}")
+        print(f"Model units: {self.lstm_units}")
+        print(f"Dense units: {DENSE_UNITS}")
         print(f"{'='*50}\n")
         
         # Tạo tf.data.Dataset trên CPU để chỉ chuyển từng batch sang GPU (tránh OOM)

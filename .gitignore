@@ -66,3 +66,4 @@ skills-lock.json
 *.log
 *.tmp
 *.bak
+requirements.txt

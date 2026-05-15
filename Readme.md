@@ -1,3 +1,4 @@
+.venv\Scripts\activate
 # MTF Trend Predictor 📈🤖
 
 **MTF Trend Predictor** (Multi-Timeframe Trend Predictor) là một hệ thống giao dịch tự động trên nền tảng **MetaTrader 5 (MT5)**, sử dụng mô hình học sâu **LSTM (Long Short-Term Memory)** để dự đoán xu hướng giá. Hệ thống phân tích đồng thời 2 khung thời gian (H1 và M5) cùng với các chỉ báo kỹ thuật để đưa ra quyết định giao dịch Buy/Sell một cách chính xác nhất.
@@ -9,7 +10,7 @@
 - **Giao dịch Tự động trên MT5**: Tự động kết nối, lấy dữ liệu realtime và vào lệnh trực tiếp thông qua thư viện `MetaTrader5`.
 - **Quản lý rủi ro nâng cao**: Tích hợp tính năng Trailing Stop Loss linh hoạt (kéo SL linh động theo nhiều mức lời) bên cạnh Stop Loss (SL) và Take Profit (TP) cố định.
 - **Bảng điều khiển trực quan (Dashboard)**: Quản lý toàn bộ hệ thống bằng giao diện người dùng **Streamlit**, cho phép theo dõi biểu đồ, tín hiệu, dữ liệu live và trạng thái mô hình.
-- **Môi trường Tối ưu**: Hỗ trợ huấn luyện mô hình mạnh mẽ với kiến trúc tối ưu trên môi trường **TensorFlow GPU (`tf_gpu`)**.
+- **Môi trường Tối ưu**: Hỗ trợ huấn luyện mô hình mạnh mẽ với kiến trúc tối ưu trên môi trường **TensorFlow GPU**.
 
 ## 📁 Cấu trúc Dự án
 

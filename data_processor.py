@@ -228,30 +228,30 @@ class DataProcessor:
         df = self.create_labels(df)
         df = self.prepare_features(df)
         print(f"✓ Prepared {len(df)} samples after removing NaN")
-        val_size = int(len(df) * (1 - train_ratio))
+        train_size = int(len(df) * train_ratio)
         if train_ratio >= 1.0:
-            val_size = 0
-        df_test = df.iloc[:val_size] if val_size > 0 else df.iloc[:0]
-        df_train = df.iloc[val_size:]
+            train_size = len(df)
+        df_train = df.iloc[:train_size]
+        df_test = df.iloc[train_size:]
         
-        print(f"📊 Data split: Val={len(df_test)} nến (đầu) | Train={len(df_train)} nến (sau)")
+        print(f"📊 Data split: Train={len(df_train)} nến (đầu) | Val={len(df_test)} nến (sau)")
         print(f"📐 Sliding Window Scaler: window={self.scaler_window}")
         
         # Lưu df_test để export kết quả validation
         self.df_test = df_test.copy() if len(df_test) > 0 else None
-        self.df_test_start_idx = 0  
+        self.df_test_start_idx = train_size  
         
         # === SLIDING WINDOW NORMALIZE ===
-        # Normalize toàn bộ data liên tục (val + train) để window có đủ context
-        # Thứ tự trong df: [val_data (đầu)] [train_data (sau)]
+        # Normalize toàn bộ data liên tục (train + val) để window có đủ context
+        # Thứ tự trong df: [train_data (đầu)] [val_data (sau)]
         all_features = df[self.feature_columns].values
         print(f"⏳ Đang normalize {len(all_features)} samples với sliding window={self.scaler_window}...")
         all_scaled = self.normalize_sliding_window(all_features)
         print(f"✓ Normalize hoàn tất")
         
         # Tách lại train/test từ dữ liệu đã scale
-        scaled_test = all_scaled[:val_size] if val_size > 0 else np.array([]).reshape(0, all_scaled.shape[1])
-        scaled_train = all_scaled[val_size:]
+        scaled_train = all_scaled[:train_size]
+        scaled_test = all_scaled[train_size:] if train_size < len(df) else np.array([]).reshape(0, all_scaled.shape[1])
         
         labels_train = df_train['Label'].values
         
