@@ -10,7 +10,7 @@ from typing import Tuple, Optional
 import pickle
 import os
 
-from config import (
+from src.core.constants import (
     LOOKBACK, STEP, SCALER_WINDOW, TRAIN_RATIO,
     ADX_WINDOW, MFI_WINDOW, MFI_DEFAULT_VALUE, RSI_WINDOW,
     SMA_SHORT_WINDOW, SMA_LONG_WINDOW, CCI_WINDOW,

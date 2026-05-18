@@ -19,13 +19,14 @@ if gpus:
         tf.config.experimental.set_memory_growth(gpu, True)
     print(f"✓ GPU memory growth enabled cho {len(gpus)} GPU(s)")
 
-from config import (
+from src.core.constants import (
     LOOKBACK, SCALER_WINDOW, EPOCHS, BATCH_SIZE,
     TRAIN_RATIO, MODELS_DIR,
     MODEL_MODE_DUAL, MODEL_MODE_SINGLE_M5, DEFAULT_MODEL_MODE,
 )
-from data_processor import DataProcessor
-from lstm_model import LSTMModel
+from src.modules.feature_engineering.data_processor import DataProcessor
+from src.modules.ml.lstm_model import LSTMModel
+from src.utils.paths import project_root
 
 
 class Trainer:
@@ -39,7 +40,7 @@ class Trainer:
             models_dir: Thư mục lưu models
             model_mode: Chế độ model ("dual" hoặc "single_m5")
         """
-        self.base_dir = os.path.dirname(os.path.abspath(__file__))
+        self.base_dir = str(project_root())
         self.models_dir = os.path.join(self.base_dir, models_dir)
         self.model_mode = model_mode
         

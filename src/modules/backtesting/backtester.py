@@ -9,7 +9,7 @@ from datetime import datetime, timedelta
 from typing import Optional, Dict, List, Tuple
 from dataclasses import dataclass, field
 
-from config import (
+from src.core.constants import (
     DEFAULT_LOT, DEFAULT_SL_PIPS, DEFAULT_TP_PIPS,
     MIN_CONFIDENCE, XAUUSD_POINT, PIP_MULTIPLIER,
     LOOKBACK, TRAIN_RATIO,

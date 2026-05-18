@@ -13,7 +13,7 @@ from typing import Tuple, Optional, Dict
 import os
 import h5py
 
-from config import (
+from src.core.constants import (
     LOOKBACK, N_FEATURES, LSTM_UNITS, DENSE_UNITS,
     DROPOUT_RATE, LEARNING_RATE, PREDICTION_THRESHOLD,
     EPOCHS, BATCH_SIZE,
@@ -110,7 +110,7 @@ class LSTMModel:
             callbacks.append(
                 ModelCheckpoint(
                     filepath=model_path,
-                    monitor='val_loss',
+                    monitor='val_accuracy',
                     save_best_only=True,
                     verbose=1
                 )

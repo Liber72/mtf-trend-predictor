@@ -4,7 +4,7 @@ import pandas as pd
 from datetime import datetime, timedelta, timezone
 import os
 
-from config import (
+from src.core.constants import (
     DEFAULT_SYMBOL, ALTERNATIVE_SYMBOLS,
     CRAWL_DEFAULT_LOOKBACK_DAYS,
 )

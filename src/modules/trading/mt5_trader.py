@@ -10,7 +10,7 @@ from typing import Optional, Dict, List, Tuple
 import time
 import threading
 
-from config import (
+from src.core.constants import (
     DEFAULT_SYMBOL, ALTERNATIVE_SYMBOLS,
     DEFAULT_LOT, DEFAULT_SL_PIPS, DEFAULT_TP_PIPS,
     MAX_POSITIONS, MIN_CONFIDENCE, MAGIC_NUMBER,

@@ -5,7 +5,7 @@ __pycache__/
 *.py[cod]
 *$py.class
 *.pyo
-
+database_migration_plan.md
 # ============================
 # Môi trường ảo (Virtual Env)
 # ============================

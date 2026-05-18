@@ -8,13 +8,9 @@ import pandas as pd
 import numpy as np
 import os
 from datetime import datetime, timedelta
-import sys
 import time
 
-# Add current directory to path
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-
-from config import (
+from src.core.constants import (
     DEFAULT_SYMBOL, DEFAULT_LOT, DEFAULT_SL_PIPS, DEFAULT_TP_PIPS,
     MAX_POSITIONS, MIN_CONFIDENCE, DEFAULT_TRAILING_SL_LEVELS,
     TRADE_LOG_MAX_MESSAGES, REALTIME_DATA_COUNT,
@@ -22,12 +18,13 @@ from config import (
     PREDICTION_THRESHOLD,
     MODEL_MODE_DUAL, MODEL_MODE_SINGLE_M5, DEFAULT_MODEL_MODE,
 )
-from data_processor import DataProcessor
-from lstm_model import LSTMModel
-from trainer import Trainer
-from mt5_trader import MT5Trader, get_trader
-from backtester import Backtester, BacktestResult
-from crawldata_MT5 import download_xauusd_data, TIMEFRAME_MAP
+from src.modules.feature_engineering.data_processor import DataProcessor
+from src.modules.ml.lstm_model import LSTMModel
+from src.modules.ml.trainer import Trainer
+from src.modules.trading.mt5_trader import MT5Trader, get_trader
+from src.modules.backtesting.backtester import Backtester, BacktestResult
+from src.modules.market_data.crawler import download_xauusd_data, TIMEFRAME_MAP
+from src.utils.paths import project_root
 
 # Page config
 st.set_page_config(
@@ -148,8 +145,8 @@ def load_models():
 
 
 def get_csv_files():
-    """Lấy danh sách file CSV trong thư mục"""
-    base_dir = os.path.dirname(os.path.abspath(__file__))
+    """Lấy danh sách file CSV trong thư mục gốc dự án"""
+    base_dir = str(project_root())
     csv_files = [f for f in os.listdir(base_dir) if f.endswith('.csv')]
     return {f: os.path.join(base_dir, f) for f in csv_files}
 
