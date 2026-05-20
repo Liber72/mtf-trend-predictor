@@ -10,6 +10,12 @@ import os
 from src.core.constants import ARTIFACTS_DIR, DATA_DIR, LOGS_DIR, MODELS_DIR, APP_NAME, APP_VERSION, API_PREFIX
 from src.utils.paths import ensure_directory, project_root
 
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
+
 PROJECT_ROOT = project_root()
 
 
@@ -36,13 +42,11 @@ class Settings:
     debug: bool = _bool_env("APP_DEBUG", True)
     log_level: str = os.getenv("LOG_LEVEL", "INFO")
 
-    database_url: str = os.getenv(
-        "DATABASE_URL",
-        "postgresql+asyncpg://postgres:postgres@localhost:5432/m5_h1_candle",
-    )
-    database_echo: bool = _bool_env("DATABASE_ECHO", False)
-    database_pool_size: int = _int_env("DATABASE_POOL_SIZE", 5)
-    database_max_overflow: int = _int_env("DATABASE_MAX_OVERFLOW", 10)
+    database_url: str = os.getenv("DATABASE_URL")
+    database_echo: bool = _bool_env("ECHO", False)
+    database_pool_size: int = _int_env("POOL_SIZE", 10)
+    database_max_overflow: int = _int_env("MAX_OVERFLOW", 5)
+    database_pool_recycle: int = _int_env("POOL_RECYCLE", 1800)
 
     data_dir: Path = field(default_factory=lambda: PROJECT_ROOT / DATA_DIR)
     models_dir: Path = field(default_factory=lambda: PROJECT_ROOT / MODELS_DIR)

@@ -10,6 +10,8 @@ from src.apps.api.router import api_router
 from src.core.logging import configure_logging
 from src.core.settings import ensure_runtime_directories, get_settings
 from src.infrastructure.db.session import dispose_engine, get_engine
+from src.infrastructure.middleware.cors import register_cors
+from src.infrastructure.middleware.error_handler import register_exception_handlers
 
 
 settings = get_settings()
@@ -24,20 +26,32 @@ async def lifespan(app: FastAPI):
     await dispose_engine()
 
 
+TAGS_METADATA = [
+    {"name": "system", "description": "System health and configuration."},
+    {"name": "market-data", "description": "MT5 data crawling and CSV import operations."},
+    {"name": "models", "description": "ML model training and version management."},
+    {"name": "predictions", "description": "Realtime ML predictions (Dual-Timeframe)."},
+    {"name": "trading", "description": "MT5 connection, auto trading, and trade history."},
+    {"name": "websockets", "description": "Realtime streaming for trades and predictions."},
+]
+
 app = FastAPI(
-    title=settings.app_name,
+    title="AutoTrader MTF Predictor API",
+    description="""
+    Backend API cho hệ thống giao dịch tự động Multi-Timeframe (M5 & H1).
+    Hỗ trợ dự đoán xu hướng thị trường và thực thi giao dịch tự động qua MetaTrader 5.
+    """,
     version=settings.app_version,
     debug=settings.debug,
     lifespan=lifespan,
+    openapi_tags=TAGS_METADATA,
+    docs_url="/docs",
+    redoc_url="/redoc",
 )
 
+# Middleware & exception handlers
+register_cors(app)
+register_exception_handlers(app)
+
+# API routes
 app.include_router(api_router)
-
-
-@app.get("/health", tags=["system"])
-async def root_health() -> dict[str, str]:
-    return {
-        "status": "ok",
-        "service": settings.app_name,
-        "environment": settings.environment,
-    }

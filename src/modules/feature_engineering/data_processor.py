@@ -206,9 +206,10 @@ class DataProcessor:
     
     def process_data(
         self, 
-        file_path: str,
+        file_path: Optional[str] = None,
         train_ratio: float = TRAIN_RATIO,
-        fit_scaler: bool = True
+        fit_scaler: bool = True,
+        df: Optional[pd.DataFrame] = None
     ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
         """
         Pipeline xử lý dữ liệu đầy đủ với Sliding Window MinMaxScaler
@@ -217,12 +218,21 @@ class DataProcessor:
             file_path: Đường dẫn file CSV
             train_ratio: Tỉ lệ dữ liệu train (mặc định 0.8)
             fit_scaler: Không sử dụng nữa (giữ lại để tương thích)
+            df: Cung cấp DataFrame trực tiếp để bỏ qua việc đọc file
             
         Returns:
             Tuple (X_train, X_test, y_train, y_test)
         """
-        df = self.load_data(file_path)
-        print(f"✓ Loaded {len(df)} rows from {file_path}")
+        if df is not None:
+            df = df.copy()
+            df = df.sort_values('Time').reset_index(drop=True)
+            print(f"✓ Using provided DataFrame with {len(df)} rows")
+        else:
+            if file_path is None:
+                raise ValueError("Must provide either file_path or df")
+            df = self.load_data(file_path)
+            print(f"✓ Loaded {len(df)} rows from {file_path}")
+            
         df = self.add_technical_indicators(df)
         print(f"✓ Added technical indicators")
         df = self.create_labels(df)

@@ -86,7 +86,8 @@ class Trainer:
         lookback: int = LOOKBACK,
         epochs: int = EPOCHS,
         batch_size: int = BATCH_SIZE,
-        train_ratio: float = TRAIN_RATIO
+        train_ratio: float = TRAIN_RATIO,
+        df: Optional[pd.DataFrame] = None
     ) -> Tuple[LSTMModel, Dict]:
         """
         Huấn luyện một mô hình
@@ -98,6 +99,7 @@ class Trainer:
             epochs: Số epochs
             batch_size: Batch size
             train_ratio: Tỉ lệ dữ liệu train (1.0 = train 100%)
+            df: DataFrame dữ liệu trực tiếp (tùy chọn)
             
         Returns:
             Tuple (model, metrics)
@@ -107,21 +109,29 @@ class Trainer:
         print(f"Train ratio: {train_ratio*100:.0f}%")
         print(f"{'='*60}")
         
-        # Tìm file dữ liệu
-        if data_file is None:
-            data_file = self.find_data_file(timeframe)
-        
-        if data_file is None or not os.path.exists(data_file):
-            raise FileNotFoundError(
-                f"Không tìm thấy file dữ liệu cho {timeframe}. "
-                f"Vui lòng chạy crawldata_MT5.py với timeframe={timeframe}"
-            )
-        
-        print(f"✓ Sử dụng dữ liệu: {data_file}")
-        
         # Xử lý dữ liệu
         processor = DataProcessor(lookback=lookback, step=1, scaler_window=SCALER_WINDOW)
-        X_train, X_test, y_train, y_test = processor.process_data(data_file, train_ratio=train_ratio)
+        
+        if df is not None:
+            print(f"✓ Sử dụng dữ liệu từ Database (DataFrame: {len(df)} dòng)")
+            X_train, X_test, y_train, y_test = processor.process_data(
+                file_path=None, train_ratio=train_ratio, df=df
+            )
+        else:
+            # Tìm file dữ liệu
+            if data_file is None:
+                data_file = self.find_data_file(timeframe)
+            
+            if data_file is None or not os.path.exists(data_file):
+                raise FileNotFoundError(
+                    f"Không tìm thấy file dữ liệu cho {timeframe}. "
+                    f"Vui lòng chạy crawldata_MT5.py với timeframe={timeframe}"
+                )
+            
+            print(f"✓ Sử dụng dữ liệu từ file: {data_file}")
+            X_train, X_test, y_train, y_test = processor.process_data(
+                file_path=data_file, train_ratio=train_ratio
+            )
         
         # Lưu scaler
         scaler_path = os.path.join(self.models_dir, f"{timeframe.lower()}_scaler.pkl")
