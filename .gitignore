@@ -19,6 +19,7 @@ tf_gpu/
 # ============================
 .streamlit/
 .env
+fastapi_implementation_plan.md
 
 # ============================
 # Dữ liệu (Data files)
