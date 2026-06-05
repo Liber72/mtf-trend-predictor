@@ -1,94 +1,116 @@
-# MTF Trend Predictor 📈🤖
+# MTF Trend Predictor
 
-**MTF Trend Predictor** (Multi-Timeframe Trend Predictor) là một hệ thống giao dịch tự động trên nền tảng **MetaTrader 5 (MT5)**, sử dụng mô hình học sâu **LSTM (Long Short-Term Memory)** để dự đoán xu hướng giá. Hệ thống phân tích đồng thời 2 khung thời gian (H1 và M5) cùng với các chỉ báo kỹ thuật để đưa ra quyết định giao dịch Buy/Sell một cách chính xác nhất.
+MTF Trend Predictor là một hệ thống giao dịch và giám sát cho chiến lược dự đoán xu hướng đa khung thời gian trên **MetaTrader 5**. Dự án hiện tại gồm:
 
-## 🌟 Tính năng nổi bật
+- **Backend FastAPI** để crawl dữ liệu, train model, dự đoán, giao dịch và lưu lịch sử.
+- **Frontend Operator Console** xây bằng **TanStack Start + React** để vận hành hệ thống qua giao diện web.
+- **PostgreSQL** để lưu candles, model versions, predictions và trades.
+- **Mô hình LSTM** cho hai khung thời gian chính: **H1** và **M5**.
 
-- **Kiến trúc Multi-Timeframe**: Sử dụng hai mô hình học sâu LSTM riêng biệt dự đoán xu hướng cho khung thời gian H1 và M5. 
-- **Hệ thống Đặc trưng (Features) phong phú**: Tích hợp các chỉ báo kỹ thuật tối ưu như: Open, High, Low, Close, ADX, MFI, RSI, SMA, CCI, Price Change, HL Range.
-- **Giao dịch Tự động trên MT5**: Tự động kết nối, lấy dữ liệu realtime và vào lệnh trực tiếp thông qua thư viện `MetaTrader5`.
-- **Quản lý rủi ro nâng cao**: Tích hợp tính năng Trailing Stop Loss linh hoạt bên cạnh Stop Loss (SL) và Take Profit (TP) cố định.
-- **FastAPI Backend (Mới)**: Kiến trúc Modular Monolith với REST API chuẩn, PostgreSQL, và WebSockets cho khả năng mở rộng.
-- **Bảng điều khiển trực quan (Dashboard)**: Quản lý toàn bộ hệ thống bằng giao diện người dùng **Streamlit**.
+## Tài liệu
 
-## 📁 Cấu trúc Dự án
+- Setup và chạy dự án: `SETUP.md`
+- Overview kỹ thuật nhanh: tài liệu này
+
+## Hiện trạng dự án
+
+- Hỗ trợ crawl dữ liệu từ MT5 vào database.
+- Hỗ trợ import CSV từ thư mục `data/` hoặc đường dẫn tuyệt đối.
+- Hỗ trợ train model LSTM theo timeframe và quản lý version model.
+- Hỗ trợ realtime prediction ở 2 chế độ: `dual` và `single_m5`.
+- Hỗ trợ kết nối MT5, giao dịch tay, auto trading và xem positions đang mở.
+- Hỗ trợ WebSocket để monitor trade log và trạng thái model realtime.
+- Đã có frontend nội bộ để vận hành, không còn là backend-only project.
+
+## Kiến trúc
 
 ```text
-├── src/
-│   ├── main.py              # FastAPI app bootstrap (Backend)
-│   ├── apps/
-│   │   ├── api/             # REST API routes (Market Data, Models, Trading, WebSockets)
-│   │   └── dashboard/       # Streamlit Dashboard UI
-│   ├── core/                # Settings, Constants, Errors, Logging
-│   ├── infrastructure/      # Database (SQLAlchemy, PostgreSQL), Repositories, Middleware
-│   └── modules/             # Business Logic (ML, Trading, Market Data, Features)
-├── alembic/                 # Database migrations (Alembic)
-├── models/                  # Nơi lưu trữ TensorFlow .keras models và scalers
-├── data/                    # Nơi lưu CSV market data
-├── Dockerfile               # Docker cho FastAPI & PostgreSQL
-├── docker-compose.yml       # Docker Compose setup
-├── .env                     # Biến môi trường
-└── requirements.txt         # Phụ thuộc Python
+backend/                   FastAPI app, Alembic, tests, ML/trading modules
+  alembic/
+  src/
+    apps/api/endpoints/    REST + WebSocket endpoints
+    core/                  settings, constants, logging, dependencies
+    infrastructure/        DB session, repositories, middleware
+    modules/               market_data, ml, trading, backtesting
+    utils/
+  tests/
+
+frontend/                  TanStack Start + React operator console
+  src/
+    routes/                Dashboard, Market Data, Models, Predictions, Trading, Monitor
+    components/
+    hooks/
+    lib/
+
+data/                      CSV market data
+models/                    Trained `.keras` models và scaler files
+artifacts/                 Runtime artifacts được backend tạo nếu cần
+logs/                      Application logs
+docker-compose.yml         PostgreSQL + API container
 ```
 
-## ⚙️ Yêu cầu Hệ thống
+## Các màn hình frontend
 
-Dự án bắt buộc phải chạy trên môi trường có thiết lập **TensorFlow GPU** và **Windows** để dùng MT5.
+- `/`: Dashboard tổng quan hệ thống.
+- `/market-data`: crawl MT5, import CSV, xem file dữ liệu.
+- `/models`: train model, xem versions, activate model.
+- `/models/$modelId`: xem chi tiết model.
+- `/predictions`: chạy inference và xem lịch sử prediction.
+- `/trading`: kết nối MT5, manual trade, auto trade, positions, trade history.
+- `/monitor`: theo dõi WebSocket stream của trades và predictions.
 
-- **OS**: Windows (Bắt buộc do thư viện `MetaTrader5` trên Python chỉ hỗ trợ hệ điều hành Windows). *Lưu ý: Docker có thể dùng chạy DB, nhưng Backend gọi MT5 phải chạy trên Windows Host.*
-- **Nền tảng giao dịch**: Cần có MetaTrader 5 Terminal bản Desktop chạy nền.
-- **Python**: 3.11 
+## Backend API chính
 
-## 🚀 Hướng dẫn Cài đặt & Sử dụng
+### System
 
-### 1. Cài đặt môi trường
+- `GET /api/v1/health`
 
-Sử dụng `uv` hoặc `pip` với Python 3.11:
-```bash
-python -m venv .venv
-.venv\Scripts\activate
-pip install -r requirements.txt
-```
+### Market data
 
-### 2. Cấu hình Database (PostgreSQL)
+- `POST /api/v1/market-data/crawl`
+- `POST /api/v1/market-data/import`
+- `GET /api/v1/market-data/files`
 
-Hệ thống sử dụng PostgreSQL để lưu lịch sử trade, prediction, và model version.
-Bạn có thể dùng Docker để chạy DB nhanh chóng:
-```bash
-docker-compose up -d db
-```
+### Models
 
-Sau đó tạo bảng bằng Alembic:
-```bash
-alembic upgrade head
-```
+- `POST /api/v1/models/train`
+- `GET /api/v1/models`
+- `GET /api/v1/models/{model_id}`
+- `PATCH /api/v1/models/{model_id}/activate`
 
-### 3. Khởi động FastAPI Server
+### Predictions
 
-Mở Terminal 1 và chạy backend:
-```bash
-uvicorn src.main:app --reload --port 8000
-```
-- API Docs (Swagger UI): `http://127.0.0.1:8000/docs`
-- Các tính năng có sẵn: Crawl MT5, Import CSV, Train LSTM, Auto-Trade.
+- `POST /api/v1/predictions/predict`
+- `GET /api/v1/predictions`
 
-### 4. Khởi động Bảng điều khiển (Streamlit)
+### Trading / MT5
 
-Mở Terminal 2 và chạy giao diện:
-```bash
-streamlit run src/apps/dashboard/app.py
-```
-- Dashboard: `http://localhost:8501`
+- `POST /api/v1/mt5/connect`
+- `POST /api/v1/mt5/disconnect`
+- `GET /api/v1/mt5/status`
+- `GET /api/v1/mt5/positions`
+- `POST /api/v1/trading/execute`
+- `POST /api/v1/trading/auto/start`
+- `POST /api/v1/trading/auto/stop`
+- `GET /api/v1/trading/auto/status`
+- `GET /api/v1/trades`
+- `GET /api/v1/trades/{trade_id}`
 
-## 📡 Danh sách API Endpoints chính
+### WebSocket
 
-- `POST /api/v1/market-data/crawl`: Tải dữ liệu lịch sử từ MT5
-- `POST /api/v1/market-data/import`: Import file CSV vào database PostgreSQL
-- `POST /api/v1/models/train`: Huấn luyện mô hình LSTM (chạy ngầm)
-- `GET /api/v1/models`: Danh sách các mô hình đã train
-- `POST /api/v1/trading/auto/start`: Kích hoạt Bot giao dịch tự động
-- `WS /api/v1/ws/trades`: WebSocket stream log giao dịch realtime
+- `WS /api/v1/ws/trades`
+- `WS /api/v1/ws/predictions`
 
-## ⚠️ Lưu ý Cảnh báo rủi ro (Disclaimer)
+## Dữ liệu được lưu ở đâu
 
-Dự án này là một công cụ nghiên cứu kiểm thử tín hiệu AI và hỗ trợ giao dịch, **KHÔNG ĐƯỢC XEM LÀ LỜI KHUYÊN HAY CHỈ ĐỊNH ĐẦU TƯ TÀI CHÍNH**. Giao dịch tài chính đòn bẩy cao (đặc biệt là Forex, Gold) rủi ro cực lớn. **Hãy thử nghiệm kỹ lưỡng ở tài khoản DEMO** trước khi quyết định cấp bất cứ quyền giao dịch thực tới bot trên môi trường tiền thật (Real).
+- `candles`: dữ liệu nến crawl/import.
+- `model_versions`: metadata và version model đã train.
+- `predictions`: lịch sử suy luận.
+- `trades`: lịch sử giao dịch.
+- `models/`: file model và scaler được train ra.
+- `data/`: file CSV đầu vào.
+- `logs/`: log runtime.
+
+## Rủi ro và disclaimer
+
+Đây là dự án nghiên cứu, thử nghiệm và vận hành tín hiệu giao dịch. Nội dung repo này **không phải lời khuyên đầu tư tài chính**. Hãy kiểm thử kỹ trên tài khoản demo trước khi kết nối bot với tài khoản thật.

@@ -15,9 +15,8 @@ tf_gpu/
 .venv/
 
 # ============================
-# Streamlit & Environments
+# Environments
 # ============================
-.streamlit/
 .env
 fastapi_implementation_plan.md
 
@@ -62,9 +61,15 @@ plans/
 skills-lock.json
 
 # ============================
+# Frontend (Vite + React)
+# ============================
+node_modules/
+frontend/dist/
+frontend/build/
+
+# ============================
 # Logs & Temp
 # ============================
 *.log
 *.tmp
 *.bak
-requirements.txt
