@@ -28,7 +28,7 @@ fastapi_implementation_plan.md
 # ============================
 # Model đã train & Checkpoints
 # ============================
-models/
+/models/
 savemodels/
 *.keras
 *.h5
