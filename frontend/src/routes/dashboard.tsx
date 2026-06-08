@@ -243,31 +243,33 @@ function KpiCard({
 }) {
   return (
     <div 
-      className="group relative flex flex-col h-full overflow-hidden rounded-xl border border-white/10 bg-slate-950/40 backdrop-blur-md p-5 transition-all duration-300 hover:bg-slate-900/60 hover:-translate-y-1 hover:border-yellow-500/30 hover:shadow-[0_8px_30px_-10px_rgba(234,179,8,0.15)] animate-in fade-in slide-in-from-bottom-6 duration-700 fill-mode-both"
+      className="group relative flex flex-col h-full overflow-hidden rounded-3xl border border-white/5 bg-white/[0.02] backdrop-blur-3xl p-6 transition-all duration-700 ease-out hover:bg-white/[0.04] hover:-translate-y-1.5 hover:border-yellow-500/20 hover:shadow-[0_30px_60px_-15px_rgba(234,179,8,0.08)] animate-in fade-in slide-in-from-bottom-8 duration-1000 fill-mode-both"
       style={{ animationDelay: `${delay}ms` }}
     >
-      <div className="absolute top-0 left-0 w-full h-[1px] bg-gradient-to-r from-transparent via-yellow-500/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+      <div className="absolute top-0 left-0 w-full h-[1px] bg-gradient-to-r from-transparent via-yellow-500/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
+      <div className="absolute inset-0 bg-gradient-to-b from-yellow-500/5 to-transparent opacity-0 transition-opacity duration-700 group-hover:opacity-100 pointer-events-none" />
 
       {/* Top Row: Icon & Badge */}
-      <div className="flex items-start justify-between mb-3">
-        <div className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-yellow-500/10 border border-yellow-500/20 text-yellow-500 transition-colors group-hover:text-yellow-400 group-hover:shadow-[0_0_15px_rgba(234,179,8,0.2)]">
+      <div className="flex items-start justify-between mb-5 relative z-10">
+        <div className="relative flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-yellow-500/10 border border-yellow-500/10 text-yellow-500 transition-all duration-700 group-hover:text-yellow-400 group-hover:shadow-[0_0_30px_rgba(234,179,8,0.15)]">
           {icon}
+          <div className="absolute inset-0 rounded-2xl border border-yellow-400/0 group-hover:border-yellow-400/30 transition-all duration-700 opacity-0 group-hover:opacity-100" />
         </div>
         <StatusBadge tone={tone}>{status}</StatusBadge>
       </div>
 
       {/* Label */}
-      <div className="mb-5">
-        <h3 className="text-sm font-bold text-white uppercase tracking-wider">{label}</h3>
+      <div className="mb-6 relative z-10">
+        <h3 className="text-[15px] font-medium text-slate-200 group-hover:text-yellow-400 transition-colors duration-500">{label}</h3>
       </div>
 
       {/* Data Box */}
-      <div className="mt-auto rounded-lg bg-black/40 p-3.5 border border-white/5">
-        <dl className="space-y-2 font-mono text-xs">
+      <div className="mt-auto rounded-2xl bg-white/[0.02] p-5 border border-white/5 relative z-10 transition-all duration-700 group-hover:bg-white/[0.04]">
+        <dl className="space-y-3 text-[13px]">
           {rows.map(([k, v]) => (
-            <div key={k} className="flex items-center justify-between gap-3">
-              <dt className="text-slate-400">{k}</dt>
-              <dd className="font-semibold text-white truncate text-right">{v ?? "—"}</dd>
+            <div key={k} className="flex items-center justify-between gap-4">
+              <dt className="text-slate-400 font-medium">{k}</dt>
+              <dd className="font-semibold text-slate-200 truncate text-right">{v ?? "—"}</dd>
             </div>
           ))}
         </dl>
