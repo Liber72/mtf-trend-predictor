@@ -17,7 +17,7 @@ gpus = tf.config.experimental.list_physical_devices('GPU')
 if gpus:
     for gpu in gpus:
         tf.config.experimental.set_memory_growth(gpu, True)
-    print(f"✓ GPU memory growth enabled cho {len(gpus)} GPU(s)")
+    print(f"[OK] GPU memory growth enabled cho {len(gpus)} GPU(s)")
 
 from src.core.constants import (
     LOOKBACK, SCALER_WINDOW, EPOCHS, BATCH_SIZE,
@@ -116,7 +116,7 @@ class Trainer:
                 f"Vui lòng chạy crawldata_MT5.py với timeframe={timeframe}"
             )
         
-        print(f"✓ Sử dụng dữ liệu: {data_file}")
+        print(f"[OK] Sử dụng dữ liệu: {data_file}")
         
         # Xử lý dữ liệu
         processor = DataProcessor(lookback=lookback, step=1, scaler_window=SCALER_WINDOW)
@@ -148,7 +148,7 @@ class Trainer:
             metrics = model.evaluate(X_test, y_test)
             metrics.update(train_results)
             
-            print(f"\n📊 Kết quả đánh giá {timeframe}:")
+            print(f"\n[STATS] Kết quả đánh giá {timeframe}:")
             print(f"  - Accuracy: {metrics['accuracy']:.4f} ({metrics['accuracy']*100:.2f}%)")
             print(f"  - Precision: {metrics['precision']:.4f}")
             print(f"  - Recall: {metrics['recall']:.4f}")
@@ -169,7 +169,7 @@ class Trainer:
             metrics['precision'] = 0
             metrics['recall'] = 0
             metrics['f1_score'] = 0
-            print(f"\n⚠️ Train 100% - không có validation metrics")
+            print(f"\n[WARN] Train 100% - không có validation metrics")
         
         # Lưu model
         model.save(model_path)
@@ -281,7 +281,7 @@ class Trainer:
             )
             results['H1'] = h1_metrics
         except Exception as e:
-            print(f"❌ Lỗi train H1: {e}")
+            print(f"[ERROR] Lỗi train H1: {e}")
             results['H1'] = {'error': str(e)}
         
         # Train M5
@@ -291,7 +291,7 @@ class Trainer:
             )
             results['M5'] = m5_metrics
         except Exception as e:
-            print(f"❌ Lỗi train M5: {e}")
+            print(f"[ERROR] Lỗi train M5: {e}")
             results['M5'] = {'error': str(e)}
         
         print("\n" + "="*60)
@@ -299,9 +299,9 @@ class Trainer:
         print("="*60)
         
         if 'accuracy' in results.get('H1', {}):
-            print(f"✓ H1 Accuracy: {results['H1']['accuracy']*100:.2f}%")
+            print(f"[OK] H1 Accuracy: {results['H1']['accuracy']*100:.2f}%")
         if 'accuracy' in results.get('M5', {}):
-            print(f"✓ M5 Accuracy: {results['M5']['accuracy']*100:.2f}%")
+            print(f"[OK] M5 Accuracy: {results['M5']['accuracy']*100:.2f}%")
         
         return results
     
@@ -325,7 +325,7 @@ class Trainer:
             self.h1_model = LSTMModel()
             self.h1_model.load(h1_model_path)
             h1_loaded = True
-            print("✓ Loaded H1 model")
+            print("[OK] Loaded H1 model")
         
         # Load M5
         m5_model_path = os.path.join(self.models_dir, "m5_model.keras")
@@ -337,7 +337,7 @@ class Trainer:
             self.m5_model = LSTMModel()
             self.m5_model.load(m5_model_path)
             m5_loaded = True
-            print("✓ Loaded M5 model")
+            print("[OK] Loaded M5 model")
         
         return h1_loaded, m5_loaded
     

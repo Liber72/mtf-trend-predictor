@@ -104,13 +104,13 @@ def download_xauusd_data(symbol: str, start_date: datetime, end_date: datetime, 
     df['time'] = pd.to_datetime(df['time'], unit='s')
     df.columns = ['Time', 'Open', 'High', 'Low', 'Close', 'TickVolume', 'Spread', 'RealVolume']
     df = df.sort_values('Time').reset_index(drop=True)
-    print(f"\n✓ Đã tải thành công {len(df)} nến {timeframe}")
+    print(f"\n[OK] Đã tải thành công {len(df)} nến {timeframe}")
     print(f"  - Từ: {df['Time'].iloc[0]}")
     print(f"  - Đến: {df['Time'].iloc[-1]}")
     output_dir = os.path.dirname(os.path.abspath(__file__))
     output_file = os.path.join(output_dir, f"{symbol}_{timeframe}_{start_date.strftime('%Y%m%d')}_{end_date.strftime('%Y%m%d')}.csv")
     df.to_csv(output_file, index=False)
-    print(f"\n✓ Đã lưu file: {output_file}")
+    print(f"\n[OK] Đã lưu file: {output_file}")
     print("\n--- Thống kê dữ liệu ---")
     print(f"Số lượng nến: {len(df)}")
     print(f"Giá cao nhất: {df['High'].max():.2f}")
@@ -122,7 +122,7 @@ def download_xauusd_data(symbol: str, start_date: datetime, end_date: datetime, 
     print("\n--- 5 dòng cuối ---")
     print(df.tail().to_string(index=False))
     mt5.shutdown()
-    print("\n✓ Đã ngắt kết nối MT5")
+    print("\n[OK] Đã ngắt kết nối MT5")
     return df
 
 if __name__ == "__main__": 

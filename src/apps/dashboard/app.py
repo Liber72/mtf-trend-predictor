@@ -19,7 +19,7 @@ from src.apps.dashboard.api_client import APIClient
 # Page config
 st.set_page_config(
     page_title="LSTM AutoTrader Dashboard",
-    page_icon="📈",
+    page_icon="[UP]",
     layout="wide"
 )
 
@@ -56,7 +56,7 @@ st.markdown("""
 
 def display_prediction_box(direction: str, probability: float, label: str):
     color = "#00b894" if direction == "UP" else "#d63031"
-    icon = "📈" if direction == "UP" else "📉"
+    icon = "[UP]" if direction == "UP" else "[DOWN]"
     st.markdown(f"""
     <div style="background: linear-gradient(135deg, {color}99 0%, {color} 100%); 
                 padding: 1rem; border-radius: 10px; text-align: center; margin: 0.5rem 0;">
@@ -79,7 +79,7 @@ def display_combined_signal(signal: str, confidence: float = None, reason: str =
 
 
 def main():
-    st.markdown('<div class="main-header">📊 LSTM AutoTrader Dashboard</div>', unsafe_allow_html=True)
+    st.markdown('<div class="main-header">LSTM AutoTrader Dashboard</div>', unsafe_allow_html=True)
     
     # Check Backend Health
     health = APIClient.get_system_health()
@@ -105,7 +105,7 @@ def main():
 
         
         # MT5 Connection
-        st.subheader("🔌 MT5 Connection")
+        st.subheader(" MT5 Connection")
         col_c1, col_c2 = st.columns(2)
         with col_c1:
             if st.button("Kết nối", disabled=is_connected):
@@ -124,7 +124,7 @@ def main():
         st.divider()
         
         # Model Mode
-        st.subheader("🎯 Model Mode")
+        st.subheader("Model Mode")
         model_mode = st.radio(
             "Chế độ dự đoán",
             options=[MODEL_MODE_DUAL, MODEL_MODE_SINGLE_M5],
@@ -132,7 +132,7 @@ def main():
         )
         
         # Auto Trading
-        st.subheader("🤖 Auto Trading")
+        st.subheader("Auto Trading")
         auto_interval = st.number_input("Bot Interval (s)", 0.5, 10.0, float(auto_status.get("interval") or AUTO_TRADE_INTERVAL))
         
         col_a1, col_a2 = st.columns(2)
@@ -182,7 +182,7 @@ def main():
     col1, col2, col3 = st.columns(3)
     
     with col1:
-        st.subheader("📊 Model H1 (Active)")
+        st.subheader("Model H1")
         h1_model = next((m for m in db_models if m["timeframe"] == "H1" and m["is_active"]), None)
         if h1_model:
             metrics = h1_model.get("metrics", {})
@@ -192,7 +192,7 @@ def main():
             st.warning("Chưa có H1 model active")
 
     with col2:
-        st.subheader("📊 Model M5 (Active)")
+        st.subheader(" Model M5")
         m5_model = next((m for m in db_models if m["timeframe"] == "M5" and m["is_active"]), None)
         if m5_model:
             metrics = m5_model.get("metrics", {})
@@ -202,8 +202,8 @@ def main():
             st.warning("Chưa có M5 model active")
             
     with col3:
-        st.subheader("🎯 Dự đoán Realtime")
-        if st.button("🔮 Predict Now ", type="primary", width="stretch"):
+        st.subheader(" Dự đoán Realtime")
+        if st.button(" Predict Now ", type="primary", width="stretch"):
             if not is_connected:
                 st.error("Cần kết nối MT5 để lấy giá realtime")
             else:
@@ -226,7 +226,7 @@ def main():
     col_acc, col_pos, col_hist = st.columns([1, 1.5, 1.5])
     
     with col_acc:
-        st.subheader("💳 Tài khoản (MT5)")
+        st.subheader("💳 Tài khoản")
         if is_connected and mt5_status.get("account_info"):
             acc = mt5_status["account_info"]
             st.metric("Balance", f"${acc['balance']:,.2f}")
@@ -269,7 +269,7 @@ def main():
                     st.rerun()
 
     with col_hist:
-        st.subheader("📜 Lịch sử Trade")
+        st.subheader("Lịch sử Trade")
         trades = APIClient.get_trades(10)
         if trades:
             for t in trades:

@@ -733,7 +733,7 @@ class MT5Trader:
                               f"lời {r['profit_pips']} pips → SL={r['new_sl']:.2f} "
                               f"(level {r['level'][0]}→{r['level'][1]})")
             except Exception as e:
-                print(f"⚠️ Trailing SL error: {e}")
+                print(f"[WARN] Trailing SL error: {e}")
             time.sleep(TRAILING_CHECK_INTERVAL)
         print("📐 Trailing SL thread exited")
     
@@ -778,8 +778,8 @@ class MT5Trader:
         )
         self._auto_trade_thread.start()
         mode_label = "Dual (M5+H1)" if self.model_mode == MODEL_MODE_DUAL else "Single (M5)"
-        self._add_auto_message(f"🤖 Auto Trading started (interval: {interval}s, mode: {mode_label})", "success")
-        print(f"🤖 Auto Trading thread started (interval: {interval}s, mode: {mode_label})")
+        self._add_auto_message(f"[BOT] Auto Trading started (interval: {interval}s, mode: {mode_label})", "success")
+        print(f"[BOT] Auto Trading thread started (interval: {interval}s, mode: {mode_label})")
     
     def stop_auto_trade_thread(self):
         """Dừng thread auto trading"""
@@ -796,7 +796,7 @@ class MT5Trader:
     
     def _auto_trade_loop(self):
         """Vòng lặp chính của auto trading — chạy trong background thread"""
-        print("🤖 Auto Trading loop started")
+        print("[BOT] Auto Trading loop started")
         
         while self.is_auto_trading and self.connected:
             try:
@@ -845,7 +845,7 @@ class MT5Trader:
                 
                 # In ra terminal
                 print(f"\n{'='*50}")
-                print(f"📊 PREDICTION @ {datetime.now().strftime('%H:%M:%S')} [{self.model_mode}]")
+                print(f"[STATS] PREDICTION @ {datetime.now().strftime('%H:%M:%S')} [{self.model_mode}]")
                 if self.model_mode == MODEL_MODE_DUAL:
                     print(f"   H1: {h1_dir} ({h1_prob*100:.1f}%)")
                 print(f"   M5: {m5_dir} ({m5_prob*100:.1f}%)")
@@ -859,8 +859,8 @@ class MT5Trader:
                     executed, msg = self.execute_signal(signal, confidence)
                     
                     if executed:
-                        print(f"   ✅ VÀO LỆNH: {msg}")
-                        self._add_auto_message(f"✅ {msg}", "success")
+                        print(f"   [OK] VÀO LỆNH: {msg}")
+                        self._add_auto_message(f"[OK] {msg}", "success")
                     else:
                         print(f"   ℹ️ BỎ QUA: {msg}")
                         self._add_auto_message(f"ℹ️ {msg}", "info")
@@ -870,12 +870,12 @@ class MT5Trader:
                 print(f"{'='*50}")
                 
             except Exception as e:
-                print(f"⚠️ Auto Trading error: {e}")
-                self._add_auto_message(f"⚠️ Error: {e}", "error")
+                print(f"[WARN] Auto Trading error: {e}")
+                self._add_auto_message(f"[WARN] Error: {e}", "error")
             
             time.sleep(self._auto_trade_interval)
         
-        print("🤖 Auto Trading loop exited")
+        print("[BOT] Auto Trading loop exited")
     
     def get_last_signal(self) -> Optional[Dict]:
         """Lấy tín hiệu mới nhất (thread-safe)"""

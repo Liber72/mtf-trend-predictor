@@ -226,25 +226,25 @@ class DataProcessor:
         if df is not None:
             df = df.copy()
             df = df.sort_values('Time').reset_index(drop=True)
-            print(f"✓ Using provided DataFrame with {len(df)} rows")
+            print(f"[OK] Using provided DataFrame with {len(df)} rows")
         else:
             if file_path is None:
                 raise ValueError("Must provide either file_path or df")
             df = self.load_data(file_path)
-            print(f"✓ Loaded {len(df)} rows from {file_path}")
+            print(f"[OK] Loaded {len(df)} rows from {file_path}")
             
         df = self.add_technical_indicators(df)
-        print(f"✓ Added technical indicators")
+        print(f"[OK] Added technical indicators")
         df = self.create_labels(df)
         df = self.prepare_features(df)
-        print(f"✓ Prepared {len(df)} samples after removing NaN")
+        print(f"[OK] Prepared {len(df)} samples after removing NaN")
         train_size = int(len(df) * train_ratio)
         if train_ratio >= 1.0:
             train_size = len(df)
         df_train = df.iloc[:train_size]
         df_test = df.iloc[train_size:]
         
-        print(f"📊 Data split: Train={len(df_train)} nến (đầu) | Val={len(df_test)} nến (sau)")
+        print(f"[STATS] Data split: Train={len(df_train)} nến (đầu) | Val={len(df_test)} nến (sau)")
         print(f"📐 Sliding Window Scaler: window={self.scaler_window}")
         
         # Lưu df_test để export kết quả validation
@@ -257,7 +257,7 @@ class DataProcessor:
         all_features = df[self.feature_columns].values
         print(f"⏳ Đang normalize {len(all_features)} samples với sliding window={self.scaler_window}...")
         all_scaled = self.normalize_sliding_window(all_features)
-        print(f"✓ Normalize hoàn tất")
+        print(f"[OK] Normalize hoàn tất")
         
         # Tách lại train/test từ dữ liệu đã scale
         scaled_train = all_scaled[:train_size]
@@ -276,9 +276,9 @@ class DataProcessor:
             # Không có test data (train 100%)
             X_test = np.array([]).reshape(0, self.lookback, X_train.shape[2])
             y_test = np.array([])
-            print(f"⚠️ Train ratio = 100% - không có validation set")
+            print(f"[WARN] Train ratio = 100% - không có validation set")
         
-        print(f"✓ Created sequences:")
+        print(f"[OK] Created sequences:")
         print(f"  - Train: {X_train.shape[0]} samples")
         print(f"  - Val/Test: {X_test.shape[0]} samples")
         print(f"  - Features: {X_train.shape[2]}")
@@ -299,7 +299,7 @@ class DataProcessor:
                 'scaler_window': self.scaler_window,
                 'feature_columns': self.feature_columns
             }, f)
-        print(f"✓ Saved scaler config (window={self.scaler_window}) to {file_path}")
+        print(f"[OK] Saved scaler config (window={self.scaler_window}) to {file_path}")
     
     def load_scaler(self, file_path: str):
         """
@@ -314,9 +314,9 @@ class DataProcessor:
             if 'scaler_window' in data:
                 self.scaler_window = data['scaler_window']
             else:
-                print(f"⚠️ File scaler cũ (global), sử dụng scaler_window={self.scaler_window}")
+                print(f"[WARN] File scaler cũ (global), sử dụng scaler_window={self.scaler_window}")
             self.feature_columns = data['feature_columns']
-        print(f"✓ Loaded scaler config (window={self.scaler_window}) from {file_path}")
+        print(f"[OK] Loaded scaler config (window={self.scaler_window}) from {file_path}")
     
     def get_latest_sequence(self, df: pd.DataFrame) -> np.ndarray:
         """
@@ -375,7 +375,7 @@ if __name__ == "__main__":
         processor = DataProcessor(lookback=LOOKBACK, step=STEP, scaler_window=SCALER_WINDOW)
         X_train, X_test, y_train, y_test = processor.process_data(test_file)
         
-        print(f"\n✓ Test thành công!")
+        print(f"\n[OK] Test thành công!")
         print(f"X_train shape: {X_train.shape}")
         print(f"y_train distribution: {np.bincount(y_train.astype(int))}")
     else:

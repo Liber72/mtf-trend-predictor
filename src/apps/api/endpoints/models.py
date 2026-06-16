@@ -73,7 +73,7 @@ async def train_model(
     candle_repo = CandleRepository(db)
     # Lấy toàn bộ nến của timeframe này
     # Ta dùng limit=100000 để lấy đủ dữ liệu train
-    db_candles = await candle_repo.list_by_timeframe(
+    db_candles, total = await candle_repo.list_by_symbol_timeframe(
         symbol="XAUUSD", timeframe=req.timeframe, limit=100000
     )
     

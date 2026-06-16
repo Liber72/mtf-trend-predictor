@@ -168,7 +168,7 @@ class Backtester:
             start_idx = max(m5_train_size, lookback + 10)
             end_idx = len(m5_df) - 1
             
-            print(f"📊 Backtest chỉ trên VALIDATION SET:")
+            print(f"[STATS] Backtest chỉ trên VALIDATION SET:")
             print(f"   Thời gian bắt đầu val: {val_start_time}")
             print(f"   M5: Train {m5_train_size} nến | Val {len(m5_df) - m5_train_size} nến")
             print(f"   H1: Train {h1_train_size} nến | Val {h1_val_mask.sum()} nến")
@@ -275,7 +275,7 @@ class Backtester:
                 except Exception as e:
                     # Log error for debugging (only first 5)
                     if len(result.signals_history) < 5:
-                        print(f"⚠️ Prediction error at {current_time}: {e}")
+                        print(f"[WARN] Prediction error at {current_time}: {e}")
                     continue
             
             # Update equity curve
@@ -310,7 +310,7 @@ class Backtester:
         buy_signals = sum(1 for s in result.signals_history if s.get('signal') == 'BUY')
         sell_signals = sum(1 for s in result.signals_history if s.get('signal') == 'SELL')
         wait_signals = sum(1 for s in result.signals_history if s.get('signal') == 'WAIT')
-        print(f"\n📊 Backtest Summary:")
+        print(f"\n[STATS] Backtest Summary:")
         print(f"   Signals: BUY={buy_signals}, SELL={sell_signals}, WAIT={wait_signals}")
         print(f"   Trades executed: {len(result.trades)}")
         print(f"   Final equity: ${equity:,.2f}")

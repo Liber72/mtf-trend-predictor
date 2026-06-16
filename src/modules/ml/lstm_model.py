@@ -6,7 +6,7 @@ Xây dựng và huấn luyện mô hình LSTM cho dự đoán xu hướng giá
 import numpy as np
 import tensorflow as tf
 from tensorflow.keras.models import Sequential, load_model
-from tensorflow.keras.layers import LSTM, Dense, Dropout, BatchNormalization
+from tensorflow.keras.layers import LSTM, Dense, Dropout, LayerNormalization
 from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint, ReduceLROnPlateau
 from tensorflow.keras.optimizers import Adam
 from typing import Tuple, Optional, Dict
@@ -48,14 +48,15 @@ class LSTMModel:
             LSTM(
                 units=self.lstm_units[0],
                 return_sequences=True,
-                input_shape=(self.lookback, self.n_features)
-            ),
-            BatchNormalization(),
+                input_shape=(self.lookback, self.n_features),
+                recurrent_dropout=0.2),
+            LayerNormalization(),
             Dropout(self.dropout_rate),
             
             # Second LSTM layer
-            LSTM(units=self.lstm_units[1], return_sequences=False),
-            BatchNormalization(),
+            LSTM(units=self.lstm_units[1], return_sequences=False,
+            recurrent_dropout=0.2),
+            LayerNormalization(),
             Dropout(self.dropout_rate),
             
             # Dense layers
@@ -295,7 +296,7 @@ class LSTMModel:
         os.makedirs(os.path.dirname(file_path), exist_ok=True)
         
         self.model.save(file_path)
-        print(f"✓ Saved model to {file_path}")
+        print(f"[OK] Saved model to {file_path}")
     
     def load(self, file_path: str):
         """
@@ -305,7 +306,7 @@ class LSTMModel:
             file_path: Đường dẫn file .keras
         """
         self.model = load_model(file_path)
-        print(f"✓ Loaded model from {file_path}")
+        print(f"[OK] Loaded model from {file_path}")
     
     def summary(self):
         """In summary của model"""
