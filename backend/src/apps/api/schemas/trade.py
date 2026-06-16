@@ -112,6 +112,11 @@ class AutoTradeStartRequest(BaseModel):
         default="dual",
         description="dual | single_m5",
     )
+    volume: float = Field(
+        default=0.1,
+        ge=0.01,
+        description="Khối lượng giao dịch (Lot)",
+    )
 
 
 class AutoTradeStatusResponse(BaseModel):
@@ -119,3 +124,5 @@ class AutoTradeStatusResponse(BaseModel):
     running: bool
     interval: float | None = None
     model_mode: str | None = None
+    volume: float | None = None
+

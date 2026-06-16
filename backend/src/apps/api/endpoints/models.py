@@ -48,6 +48,12 @@ def _get_trainer():
     return _trainer
 
 
+# Global state to track live training progress
+TRAINING_STATE = {
+    "H1": {"status": "idle", "epoch": 0, "total_epochs": 0, "logs": []},
+    "M5": {"status": "idle", "epoch": 0, "total_epochs": 0, "logs": []},
+}
+
 # ======================================================================
 # POST /models/train  —  Huấn luyện model
 # ======================================================================
@@ -66,6 +72,15 @@ async def train_model(
     if req.timeframe not in ("H1", "M5"):
         raise HTTPException(status_code=422, detail="timeframe phải là H1 hoặc M5")
 
+    # Reset global training state
+    TRAINING_STATE[req.timeframe] = {
+        "status": "training",
+        "epoch": 0,
+        "total_epochs": req.epochs,
+        "logs": [],
+        "cancel_requested": False
+    }
+
     # Fetch data from Database instead of CSV
     from src.infrastructure.db.repositories.candle_repo import CandleRepository
     import pandas as pd
@@ -78,6 +93,7 @@ async def train_model(
     )
     
     if not db_candles:
+        TRAINING_STATE[req.timeframe]["status"] = "error"
         raise HTTPException(
             status_code=404, 
             detail=f"Không có dữ liệu {req.timeframe} trong Database. Vui lòng Crawl Data trước."
@@ -100,6 +116,23 @@ async def train_model(
 
     trainer = _get_trainer()
 
+    def progress_callback(epoch, total_epochs, logs):
+        TRAINING_STATE[req.timeframe]["epoch"] = epoch
+        TRAINING_STATE[req.timeframe]["total_epochs"] = total_epochs
+        # Keep only the last 20 logs to avoid memory bloat
+        TRAINING_STATE[req.timeframe]["logs"].append({
+            "epoch": epoch,
+            "loss": float(logs.get('loss', 0)) if logs else 0,
+            "accuracy": float(logs.get('accuracy', 0)) if logs else 0,
+            "val_loss": float(logs.get('val_loss', 0)) if logs else 0,
+            "val_accuracy": float(logs.get('val_accuracy', 0)) if logs else 0
+        })
+        if len(TRAINING_STATE[req.timeframe]["logs"]) > 20:
+            TRAINING_STATE[req.timeframe]["logs"].pop(0)
+
+    def check_cancel():
+        return TRAINING_STATE[req.timeframe].get("cancel_requested", False)
+
     # Chạy training trong thread pool (TensorFlow là sync/CPU-bound)
     try:
         _, metrics = await asyncio.to_thread(
@@ -110,11 +143,20 @@ async def train_model(
             epochs=req.epochs,
             batch_size=req.batch_size,
             train_ratio=req.train_ratio,
-            df=df
+            df=df,
+            progress_callback=progress_callback,
+            check_cancel_callback=check_cancel
         )
     except Exception as e:
+        if str(e) == "TRAINING_CANCELLED" or TRAINING_STATE[req.timeframe].get("cancel_requested"):
+            TRAINING_STATE[req.timeframe]["status"] = "cancelled"
+            raise HTTPException(status_code=400, detail="Training process has been cancelled.")
+            
+        TRAINING_STATE[req.timeframe]["status"] = "error"
         logger.exception("Training failed for %s", req.timeframe)
-        raise HTTPException(status_code=500, detail=f"Training thất bại: {e}")
+        raise HTTPException(status_code=500, detail=f"Training failed: {e}")
+
+    TRAINING_STATE[req.timeframe]["status"] = "done"
 
     # Lưu model version vào DB
     model_path = os.path.join(
@@ -167,6 +209,35 @@ async def train_model(
         message=f"Model {req.timeframe} trained successfully (v{version_str})",
     )
 
+
+# ======================================================================
+# GET /models/train-status  —  Lấy trạng thái quá trình huấn luyện
+# ======================================================================
+
+@router.get("/train-status")
+async def get_train_status(
+    timeframe: str = Query(..., description="Timeframe cần lấy trạng thái (H1 hoặc M5)")
+):
+    if timeframe not in TRAINING_STATE:
+        raise HTTPException(status_code=400, detail="Invalid timeframe")
+    return TRAINING_STATE[timeframe]
+
+# ======================================================================
+# POST /models/cancel-train  —  Hủy quá trình huấn luyện
+# ======================================================================
+
+@router.post("/cancel-train")
+async def cancel_train(
+    timeframe: str = Query(..., description="Timeframe cần hủy huấn luyện (H1 hoặc M5)")
+):
+    if timeframe not in TRAINING_STATE:
+        raise HTTPException(status_code=400, detail="Invalid timeframe")
+    
+    if TRAINING_STATE[timeframe]["status"] == "training":
+        TRAINING_STATE[timeframe]["cancel_requested"] = True
+        return {"message": f"Cancellation request for {timeframe} training has been sent."}
+    
+    return {"message": f"{timeframe} is not currently training."}
 
 # ======================================================================
 # GET /models  —  Danh sách model versions

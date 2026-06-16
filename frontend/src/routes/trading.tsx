@@ -1,8 +1,8 @@
-import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useState, useEffect } from "react";
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { toast } from "sonner";
-import { PlugZap, Play, Power } from "lucide-react";
+import { PlugZap, Play, Power, Trash2, ChevronLeft, ChevronRight } from "lucide-react";
 import { getTradeOpenedAt, getTradePnl } from "@/lib/backend-contract";
 import { http, getErrorMessage } from "@/lib/http";
 import { Button } from "@/components/ui/button";
@@ -42,6 +42,7 @@ type AutoTradeStatus = {
   running: boolean;
   interval?: number | null;
   model_mode?: string | null;
+  volume?: number | null;
 };
 
 type TradeItem = {
@@ -56,6 +57,10 @@ type TradeItem = {
 
 type PaginatedTrades = {
   items: TradeItem[];
+  total: number;
+  page: number;
+  size: number;
+  pages: number;
 };
 
 export const Route = createFileRoute("/trading")({
@@ -81,9 +86,11 @@ function TradingPage() {
     queryFn: async () => (await http.get("/api/v1/trading/auto/status")).data,
     retry: 0,
   });
+  const [tradePage, setTradePage] = useState(1);
   const trades = useQuery<PaginatedTrades>({
-    queryKey: ["trades"],
-    queryFn: async () => (await http.get("/api/v1/trades")).data,
+    queryKey: ["trades", tradePage],
+    queryFn: async () => (await http.get(`/api/v1/trades?page=${tradePage}&size=10`)).data,
+    placeholderData: keepPreviousData,
     retry: 0,
   });
 
@@ -125,6 +132,7 @@ function TradingPage() {
 
   // Auto trade
   const [interval, setInterval] = useState("1");
+  const [volume, setVolume] = useState("0.1");
   const [autoMode, setAutoMode] = useState<ModelMode>("dual");
   const start = useMutation({
     mutationFn: async () =>
@@ -132,6 +140,7 @@ function TradingPage() {
         await http.post("/api/v1/trading/auto/start", {
           interval: Number(interval),
           model_mode: autoMode,
+          volume: Number(volume),
         })
       ).data,
     onSuccess: () => {
@@ -148,6 +157,20 @@ function TradingPage() {
     },
     onError: (e) => toast.error(getErrorMessage(e)),
   });
+
+  useEffect(() => {
+    if (autoStatus.data?.running) {
+      if (autoStatus.data.interval) {
+        setInterval(autoStatus.data.interval.toString());
+      }
+      if (autoStatus.data.volume) {
+        setVolume(autoStatus.data.volume.toString());
+      }
+      if (autoStatus.data.model_mode) {
+        setAutoMode(autoStatus.data.model_mode as ModelMode);
+      }
+    }
+  }, [autoStatus.data]);
 
   const positionList = positions.data ?? [];
   const tradeList = trades.data?.items ?? [];
@@ -246,6 +269,9 @@ function TradingPage() {
           <Field label="Interval (s)">
             <Input type="number" value={interval} onChange={(e) => setInterval(e.target.value)} />
           </Field>
+          <Field label="Volume (Lot)">
+            <Input type="number" step="0.01" min="0.01" value={volume} onChange={(e) => setVolume(e.target.value)} />
+          </Field>
           <Field label="Model mode">
             <Select value={autoMode} onValueChange={(value) => setAutoMode(value as ModelMode)}>
               <SelectTrigger>
@@ -259,7 +285,7 @@ function TradingPage() {
           </Field>
         </div>
         <div className="mt-4 flex gap-2">
-          <Button onClick={() => start.mutate()} disabled={start.isPending}>
+          <Button onClick={() => start.mutate()} disabled={start.isPending || autoStatus.data?.running}>
             <Play /> {start.isPending ? "Starting…" : "Start"}
           </Button>
           <ConfirmAction
@@ -268,11 +294,13 @@ function TradingPage() {
             confirmLabel="Stop"
             variant="destructive"
             onConfirm={() => stop.mutate()}
-            disabled={stop.isPending}
+            disabled={stop.isPending || !autoStatus.data?.running}
           >
             <Power /> Stop
           </ConfirmAction>
         </div>
+        
+        <AutoTradingTerminal isRunning={autoStatus.data?.running ?? false} />
       </PageSection>
 
       <PageSection
@@ -320,20 +348,45 @@ function TradingPage() {
         ) : tradeList.length === 0 ? (
           <EmptyState title="No trades yet" hint="Executed trades will appear here." />
         ) : (
-          <DataTable
-            head={["ID", "Symbol", "Direction", "Volume", "Status", "Opened", "P/L"]}
-            rows={tradeList.map((t) => [
-              <span className="text-muted-foreground">{String(t.id).slice(0, 8)}</span>,
-              t.symbol,
-              t.direction,
-              t.volume,
-              <StatusBadge tone={statusTone(t.status)}>{t.status ?? "—"}</StatusBadge>,
-              getTradeOpenedAt(t) ? new Date(getTradeOpenedAt(t) as string).toLocaleString() : "—",
-              <span className={(getTradePnl(t) ?? 0) >= 0 ? "text-success" : "text-destructive"}>
-                {getTradePnl(t) ?? "—"}
-              </span>,
-            ])}
-          />
+          <div className="space-y-4">
+            <DataTable
+              head={["ID", "Symbol", "Direction", "Volume", "Status", "Opened (Server)", "Profit"]}
+              rows={tradeList.map((t) => [
+                <span className="text-muted-foreground font-mono">{t.id}</span>,
+                t.symbol,
+                t.direction,
+                t.volume,
+                <StatusBadge tone={statusTone(t.status)}>{t.status ?? "—"}</StatusBadge>,
+                getTradeOpenedAt(t) ? new Date(getTradeOpenedAt(t) as string).toLocaleString('en-GB', { timeZone: 'UTC' }) : "—",
+                <span className={(getTradePnl(t) ?? 0) >= 0 ? "text-success" : "text-destructive"}>
+                  {typeof getTradePnl(t) === "number" ? (getTradePnl(t) as number).toFixed(2) : "—"}
+                </span>,
+              ])}
+            />
+            {trades.data && trades.data.pages > 1 && (
+              <div className="flex items-center justify-end gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={tradePage === 1}
+                  onClick={() => setTradePage((p) => p - 1)}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <span className="text-sm text-muted-foreground">
+                  Page {trades.data.page} of {trades.data.pages}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={tradePage === trades.data.pages}
+                  onClick={() => setTradePage((p) => p + 1)}
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+            )}
+          </div>
         )}
       </PageSection>
     </div>
@@ -347,4 +400,114 @@ function statusTone(s?: string): StatusTone {
   if (u.includes("close") || u.includes("done")) return "success";
   if (u.includes("fail") || u.includes("error") || u.includes("reject")) return "danger";
   return "neutral";
+}
+
+type LogEntry = {
+  time: string;
+  type: string;
+  message: any;
+};
+
+function AutoTradingTerminal({ isRunning }: { isRunning: boolean }) {
+  const { data } = useQuery<LogEntry[]>({
+    queryKey: ["auto-trade-logs"],
+    queryFn: async () => (await http.get("/api/v1/trading/auto/logs")).data,
+    refetchInterval: isRunning ? 1000 : 5000,
+  });
+
+  const qc = useQueryClient();
+  const clearLogs = useMutation({
+    mutationFn: async () => (await http.delete("/api/v1/trading/auto/logs")).data,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["auto-trade-logs"] });
+    },
+  });
+
+  if (!data || data.length === 0) return null;
+
+  return (
+    <div className="mt-4 flex h-[28rem] flex-col rounded-xl border border-border bg-muted/20 p-4 font-sans text-sm shadow-inner">
+      <div className="mb-4 flex items-center justify-between border-b border-border pb-2">
+        <div className="flex items-center gap-2">
+          <span className="relative flex h-2 w-2">
+            {isRunning && <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75"></span>}
+            <span className={`relative inline-flex h-2 w-2 rounded-full ${isRunning ? 'bg-emerald-500' : 'bg-slate-500'}`}></span>
+          </span>
+          <span className="font-semibold uppercase tracking-wider text-foreground">
+            Live Auto Trading Feed
+          </span>
+        </div>
+        <Button variant="ghost" size="icon" onClick={() => clearLogs.mutate()} disabled={clearLogs.isPending} title="Clear Logs">
+          <Trash2 className="h-4 w-4 text-muted-foreground hover:text-destructive" />
+        </Button>
+      </div>
+      <div className="flex-1 space-y-3 overflow-y-auto pr-2">
+        {data.slice().reverse().map((log, i) => {
+          if (log.type === "prediction") {
+            const p = log.message;
+            return (
+              <div key={i} className="flex flex-col gap-2 rounded-lg border border-border bg-background p-3 shadow-sm">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-muted-foreground">{log.time}</span>
+                  <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium uppercase text-muted-foreground">
+                    {p.model_mode}
+                  </span>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-2 text-xs md:grid-cols-3">
+                  {p.model_mode === 'dual' && (
+                    <div className="flex flex-col rounded bg-muted/50 p-2">
+                      <span className="text-muted-foreground">H1</span>
+                      <div className="flex items-center gap-1.5">
+                        <span className={`font-semibold ${p.h1_dir === 'UP' || p.h1_dir === 'BUY' ? 'text-emerald-500' : p.h1_dir === 'DOWN' || p.h1_dir === 'SELL' ? 'text-red-500' : ''}`}>{p.h1_dir}</span>
+                        <span className="text-muted-foreground">{(p.h1_prob * 100).toFixed(1)}%</span>
+                      </div>
+                    </div>
+                  )}
+                  <div className="flex flex-col rounded bg-muted/50 p-2">
+                    <span className="text-muted-foreground">M5</span>
+                    <div className="flex items-center gap-1.5">
+                      <span className={`font-semibold ${p.m5_dir === 'UP' || p.m5_dir === 'BUY' ? 'text-emerald-500' : p.m5_dir === 'DOWN' || p.m5_dir === 'SELL' ? 'text-red-500' : ''}`}>{p.m5_dir}</span>
+                      <span className="text-muted-foreground">{(p.m5_prob * 100).toFixed(1)}%</span>
+                    </div>
+                  </div>
+                  <div className="flex flex-col rounded bg-muted/50 p-2">
+                    <span className="text-muted-foreground">Combined</span>
+                    <div className="flex items-center gap-1.5">
+                      <span className={`font-semibold ${p.signal === 'BUY' ? 'text-emerald-500' : p.signal === 'SELL' ? 'text-red-500' : 'text-yellow-500'}`}>{p.signal}</span>
+                      {p.confidence && <span className="text-muted-foreground">{(p.confidence * 100).toFixed(1)}%</span>}
+                    </div>
+                  </div>
+                </div>
+                
+                <div className={`mt-2 rounded-md px-3 py-2 text-xs font-medium ${
+                  p.action_type === 'success' ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400' : 
+                  p.action_type === 'warning' ? 'bg-yellow-500/15 text-yellow-600 dark:text-yellow-400' : 
+                  'bg-blue-500/15 text-blue-600 dark:text-blue-400'
+                }`}>
+                  {p.action_type === 'success' ? 'VÀO LỆNH: ' : p.action_type === 'warning' ? 'WAIT: ' : 'BỎ QUA: '}{p.action}
+                </div>
+              </div>
+            );
+          }
+          
+          return (
+            <div
+              key={i}
+              className={`flex items-start gap-3 rounded-lg border border-border bg-background p-3 shadow-sm ${
+                log.type === "error"
+                  ? "text-red-500"
+                  : log.type === "success"
+                    ? "text-emerald-500"
+                    : "text-foreground"
+              }`}
+            >
+              <span className="shrink-0 text-xs text-muted-foreground pt-0.5">[{log.time}]</span>
+              <span className="whitespace-pre-wrap text-sm">{typeof log.message === 'string' ? log.message : JSON.stringify(log.message)}</span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
 }

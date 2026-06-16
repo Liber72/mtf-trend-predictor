@@ -9,6 +9,8 @@ from datetime import datetime
 from typing import Optional, Dict, List, Tuple
 import time
 import threading
+import asyncio
+from datetime import timezone
 
 from src.core.constants import (
     DEFAULT_SYMBOL, ALTERNATIVE_SYMBOLS,
@@ -588,6 +590,81 @@ class MT5Trader:
             List các giao dịch
         """
         return self.trade_log[-limit:]
+
+    def get_mt5_history_trades(self, days: int = 30) -> List[Dict]:
+        """
+        Lấy lịch sử giao dịch trực tiếp từ MT5 và tính toán PnL, trả về list các trade hoàn chỉnh
+        """
+        if not self.connected:
+            return []
+            
+        date_from = datetime.now() - pd.Timedelta(days=days)
+        date_to = datetime.now() + pd.Timedelta(days=1)
+        
+        deals = mt5.history_deals_get(date_from, date_to)
+        if deals is None or len(deals) == 0:
+            return []
+            
+        # Group deals by position_id
+        trades = []
+        df = pd.DataFrame(list(deals), columns=deals[0]._asdict().keys())
+        df = df[df['position_id'] > 0]
+        
+        for pos_id, group in df.groupby('position_id'):
+            # Deal entry in (0) là lúc mở vị thế, out (1) là lúc đóng vị thế
+            ins = group[group['entry'] == mt5.DEAL_ENTRY_IN]
+            outs = group[group['entry'] == mt5.DEAL_ENTRY_OUT]
+            
+            if len(ins) == 0:
+                continue
+                
+            first_in = ins.iloc[0]
+            
+            # Tính tổng volume in
+            total_vol_in = ins['volume'].sum()
+            total_vol_out = outs['volume'].sum() if len(outs) > 0 else 0
+            
+            # Xác định direction
+            direction = "BUY" if first_in['type'] == mt5.DEAL_TYPE_BUY else "SELL"
+            
+            # Tính entry time và price
+            entry_time = pd.to_datetime(first_in['time'], unit='s').tz_localize('UTC').to_pydatetime()
+            entry_price = (ins['price'] * ins['volume']).sum() / total_vol_in
+            
+            # Lấy thông tin stop loss, take profit từ order gốc nếu có (chỉ xấp xỉ vì deal không lưu SL/TP trực tiếp)
+            sl, tp = None, None
+            
+            # Tính pnl (Chỉ tính Gross Profit để khớp hiển thị trên MT5 Terminal)
+            pnl = outs['profit'].sum() if len(outs) > 0 else 0
+            
+            # Status
+            status = "closed" if total_vol_out >= total_vol_in else "open"
+            
+            trade = {
+                'id': int(pos_id),
+                'symbol': first_in['symbol'],
+                'timeframe': "M5", # Default/unknown from deal
+                'direction': direction,
+                'order_ticket': int(first_in['order']),
+                'position_ticket': int(pos_id),
+                'magic_number': int(first_in['magic']),
+                'entry_time': entry_time,
+                'exit_time': pd.to_datetime(outs.iloc[-1]['time'], unit='s').tz_localize('UTC').to_pydatetime() if len(outs) > 0 else None,
+                'entry_price': float(entry_price),
+                'exit_price': float((outs['price'] * outs['volume']).sum() / total_vol_out) if total_vol_out > 0 else None,
+                'volume': float(total_vol_in),
+                'stop_loss': sl,
+                'take_profit': tp,
+                'pnl': float(pnl) if len(outs) > 0 else None,
+                'status': status,
+                'closed': status == "closed",
+                'created_at': entry_time
+            }
+            trades.append(trade)
+            
+        # Sắp xếp mới nhất lên đầu
+        trades.sort(key=lambda x: x['entry_time'], reverse=True)
+        return trades
     
     # ========== TRAILING STOP LOSS ==========
     
@@ -739,7 +816,7 @@ class MT5Trader:
     
     # ========== AUTO TRADING THREAD ==========
     
-    def _add_auto_message(self, msg: str, msg_type: str = "info"):
+    def _add_auto_message(self, msg, msg_type: str = "info"):
         """Thêm message vào log (thread-safe)"""
         with self._auto_trade_lock:
             self.auto_trade_messages.append({
@@ -747,9 +824,14 @@ class MT5Trader:
                 'message': msg,
                 'type': msg_type
             })
-            # Giữ tối đa 100 messages
-            if len(self.auto_trade_messages) > 100:
-                self.auto_trade_messages = self.auto_trade_messages[-100:]
+            # Giữ tối đa 1000 messages
+
+    def clear_auto_messages(self):
+        """Xóa toàn bộ log của auto trading."""
+        with self._auto_trade_lock:
+            self.auto_trade_messages.clear()
+            if len(self.auto_trade_messages) > 1000:
+                self.auto_trade_messages = self.auto_trade_messages[-1000:]
     
     def get_auto_messages(self, limit: int = 20) -> List[Dict]:
         """Lấy messages mới nhất (thread-safe)"""
@@ -843,6 +925,16 @@ class MT5Trader:
                         'model_mode': self.model_mode
                     }
                 
+                # Cấu trúc dữ liệu prediction
+                pred_data = {
+                    'model_mode': self.model_mode,
+                    'h1_dir': h1_dir, 'h1_prob': h1_prob,
+                    'm5_dir': m5_dir, 'm5_prob': m5_prob,
+                    'signal': signal, 'confidence': confidence,
+                    'action': '',
+                    'action_type': 'info'
+                }
+
                 # In ra terminal
                 print(f"\n{'='*50}")
                 print(f"📊 PREDICTION @ {datetime.now().strftime('%H:%M:%S')} [{self.model_mode}]")
@@ -856,18 +948,59 @@ class MT5Trader:
                 
                 # Thực thi lệnh
                 if signal and signal != "WAIT":
-                    executed, msg = self.execute_signal(signal, confidence)
+                    success, msg = self.execute_signal(signal, confidence)
+                    pred_data['action'] = msg
                     
-                    if executed:
+                    if success:
                         print(f"   ✅ VÀO LỆNH: {msg}")
-                        self._add_auto_message(f"✅ {msg}", "success")
+                        pred_data['action_type'] = 'success'
+                        
+                        # Background save to DB
+                        async def _save_trade_to_db():
+                            try:
+                                from src.infrastructure.db.session import get_session_factory
+                                from src.infrastructure.db.repositories.trade_repo import TradeRepository
+                                
+                                tick_info = self.get_symbol_info()
+                                price = tick_info.get("ask", 0) if signal == "BUY" else tick_info.get("bid", 0)
+                                point = tick_info.get("point", 0.01)
+                                
+                                sl = price - self.sl_pips * point * 10 if signal == "BUY" else price + self.sl_pips * point * 10
+                                tp = price + self.tp_pips * point * 10 if signal == "BUY" else price - self.tp_pips * point * 10
+                                
+                                factory = get_session_factory()
+                                async with factory() as session:
+                                    repo = TradeRepository(session)
+                                    # We don't have the ticket from execute_signal, we can leave it 0 or get last from trade_log
+                                    last_ticket = self.trade_log[-1]['ticket'] if self.trade_log else 0
+                                    await repo.create(
+                                        symbol=self.symbol,
+                                        timeframe="M5",
+                                        direction=signal,
+                                        magic_number=self.magic_number,
+                                        entry_time=datetime.now(timezone.utc),
+                                        entry_price=price,
+                                        volume=self.lot,
+                                        stop_loss=sl,
+                                        take_profit=tp,
+                                        status="open",
+                                        closed=False,
+                                        extra={"confidence": confidence, "source": "auto_bot"}
+                                    )
+                            except Exception as e:
+                                print(f"Failed to save auto trade to DB: {e}")
+                                
+                        threading.Thread(target=lambda: asyncio.run(_save_trade_to_db()), daemon=True).start()
                     else:
                         print(f"   ℹ️ BỎ QUA: {msg}")
-                        self._add_auto_message(f"ℹ️ {msg}", "info")
+                        pred_data['action_type'] = 'info'
                 else:
                     print(f"   ⏸️ WAIT - không vào lệnh")
+                    pred_data['action'] = "WAIT - không vào lệnh"
+                    pred_data['action_type'] = 'warning'
                 
                 print(f"{'='*50}")
+                self._add_auto_message(pred_data, "prediction")
                 
             except Exception as e:
                 print(f"⚠️ Auto Trading error: {e}")

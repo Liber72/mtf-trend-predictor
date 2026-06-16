@@ -107,7 +107,8 @@ function CrawlForm({ onDone }: { onDone: () => void }) {
         start_date: startDate,
         end_date: endDate,
       };
-      return (await http.post("/api/v1/market-data/crawl", payload)).data;
+      // Set timeout to 0 (no timeout) because crawling M5 data for years can take a long time
+      return (await http.post("/api/v1/market-data/crawl", payload, { timeout: 0 })).data;
     },
     onSuccess: (data) => {
       setResult(Array.isArray(data.results) ? data.results : []);
@@ -134,7 +135,7 @@ function CrawlForm({ onDone }: { onDone: () => void }) {
         </Field>
       </div>
       <Button className="mt-4" onClick={() => mut.mutate()} disabled={mut.isPending}>
-        <Download /> {mut.isPending ? "Crawling…" : "Crawl"}
+        <Download /> {mut.isPending ? "Crawling & Saving DB (May take minutes)..." : "Crawl"}
       </Button>
       {result && result.length > 0 && (
         <div className="mt-4">

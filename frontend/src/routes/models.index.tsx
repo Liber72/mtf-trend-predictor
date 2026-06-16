@@ -73,10 +73,10 @@ function ModelsPage() {
   });
 
   const train = useMutation<TrainResponse, Error, TrainPayload>({
-    mutationFn: async (payload) => (await http.post("/api/v1/models/train", payload)).data,
+    mutationFn: async (payload) => (await http.post("/api/v1/models/train", payload, { timeout: 3600000 })).data,
     onSuccess: (data) => {
       toast.success(
-        `Trained ${data?.timeframe ?? "model"} — acc ${data?.metrics?.accuracy?.toFixed?.(3) ?? "?"}`,
+        `Trained ${data?.timeframe ?? "model"} successfully`,
       );
       qc.invalidateQueries({ queryKey: ["models"] });
     },
@@ -244,10 +244,10 @@ function TrainForm({
           })
         }
       >
-        <Play /> {pending ? "Training…" : "Train Model"}
+        <Play /> {pending ? "Waiting for model..." : "Train Model"}
       </Button>
       {result && (
-        <div className="mt-4 grid grid-cols-2 gap-3 rounded-md border border-border bg-muted/40 p-3 font-mono text-xs md:grid-cols-4">
+        <div className="mt-4 grid grid-cols-2 gap-3 rounded-md border border-border bg-white/[0.02] p-3 font-mono text-xs md:grid-cols-4 shadow-sm backdrop-blur-xl">
           <Stat label="accuracy" value={result.metrics?.accuracy} />
           <Stat label="precision" value={result.metrics?.precision} />
           <Stat label="recall" value={result.metrics?.recall} />
@@ -255,7 +255,83 @@ function TrainForm({
           <div className="col-span-full text-muted-foreground">{result.model_path}</div>
         </div>
       )}
+      
+      {/* Hiển thị Terminal độc lập với frontend state (dựa vào backend state) */}
+      <div className="flex flex-col gap-4">
+        <LiveTrainingTerminal timeframe="H1" />
+        <LiveTrainingTerminal timeframe="M5" />
+      </div>
     </PageSection>
+  );
+}
+
+function LiveTrainingTerminal({ timeframe }: { timeframe: string }) {
+  const qc = useQueryClient();
+  const { data } = useQuery({
+    queryKey: ["train-status", timeframe],
+    queryFn: async () => (await http.get(`/api/v1/models/train-status?timeframe=${timeframe}`)).data,
+    refetchInterval: 1000,
+  });
+
+  const cancel = useMutation({
+    mutationFn: async () => (await http.post(`/api/v1/models/cancel-train?timeframe=${timeframe}`)).data,
+    onSuccess: () => {
+      toast.success(`Successfully cancelled training for ${timeframe}`);
+      qc.invalidateQueries({ queryKey: ["train-status"] });
+    },
+    onError: (e) => toast.error(getErrorMessage(e)),
+  });
+
+  if (!data || (data.status !== "training" && data.status !== "processing")) return null;
+
+  return (
+    <div className="mt-4 rounded-xl border border-white/10 bg-black/40 p-4 font-mono text-xs shadow-inner backdrop-blur-md relative">
+      <div className="mb-2 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <span className="relative flex h-2 w-2">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-yellow-400 opacity-75"></span>
+            <span className="relative inline-flex rounded-full h-2 w-2 bg-yellow-500"></span>
+          </span>
+          <span className="text-yellow-500 font-semibold uppercase tracking-wider">
+            [{timeframe}] {data.status === "training" ? "Training in progress..." : "Processing..."}
+          </span>
+        </div>
+        <div className="flex items-center gap-4">
+          <div className="text-slate-400">
+            Epoch {data.epoch} / {data.total_epochs}
+          </div>
+          {data.status === "training" && (
+            <Button
+              variant="destructive"
+              size="sm"
+              className="h-6 text-[10px] px-2 py-0 uppercase tracking-widest font-bold"
+              disabled={cancel.isPending}
+              onClick={() => cancel.mutate()}
+            >
+              Cancel
+            </Button>
+          )}
+        </div>
+      </div>
+
+      <div className="space-y-1 mt-3">
+        {data.logs?.length > 0 ? (
+          data.logs.map((log: any, i: number) => (
+            <div key={i} className="flex flex-col md:flex-row md:items-center justify-between text-slate-300 border-b border-white/5 pb-1">
+              <span className="text-slate-500">Epoch {log.epoch}</span>
+              <div className="flex gap-4">
+                <span>loss: <span className="text-rose-400">{log.loss.toFixed(4)}</span></span>
+                <span>acc: <span className="text-emerald-400">{log.accuracy.toFixed(4)}</span></span>
+                <span>val_loss: <span className="text-rose-400">{log.val_loss.toFixed(4)}</span></span>
+                <span>val_acc: <span className="text-emerald-400">{log.val_accuracy.toFixed(4)}</span></span>
+              </div>
+            </div>
+          ))
+        ) : (
+          <div className="text-slate-500 animate-pulse">Initializing model and dataset...</div>
+        )}
+      </div>
+    </div>
   );
 }
 

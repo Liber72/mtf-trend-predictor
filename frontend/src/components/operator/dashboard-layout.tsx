@@ -63,7 +63,6 @@ const NAV = [
   { to: "/models", label: "Models", icon: Boxes },
   { to: "/predictions", label: "Predictions", icon: LineChart },
   { to: "/trading", label: "Trading", icon: CandlestickChart },
-  { to: "/monitor", label: "Monitor", icon: Radio },
 ] as const;
 
 export function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -86,21 +85,14 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
       {/* Sidebar */}
       <aside
         className={cn(
-          "shrink-0 flex-col rounded-3xl border border-white/5 bg-white/[0.02] backdrop-blur-3xl shadow-[0_30px_60px_-15px_rgba(234,179,8,0.08)] transition-all duration-700 ease-out z-40 relative overflow-hidden",
+          "shrink-0 flex-col rounded-3xl border border-white/5 bg-white/[0.02] backdrop-blur-3xl shadow-[0_30px_60px_-15px_rgba(234,179,8,0.08)] transition-all duration-700 ease-out z-40 relative",
           "absolute inset-y-2 left-2 md:relative md:inset-auto md:left-auto",
           isMobileMenuOpen ? "flex w-[240px]" : "hidden md:flex",
           isCollapsed && !isMobileMenuOpen ? "md:w-[80px]" : "md:w-[240px]"
         )}
       >
         {/* Subtle inner gradient to make it soft */}
-        <div className="absolute inset-0 bg-gradient-to-b from-white/5 to-transparent opacity-50 pointer-events-none" />
-
-        <button
-          onClick={() => setIsCollapsed(!isCollapsed)}
-          className="hidden md:flex absolute -right-3 top-6 h-6 w-6 items-center justify-center rounded-full border border-white/10 bg-slate-900 text-slate-400 hover:bg-yellow-500 hover:text-slate-950 hover:border-yellow-500 transition-colors z-20 shadow-lg"
-        >
-          {isCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
-        </button>
+        <div className="absolute inset-0 bg-gradient-to-b from-white/5 to-transparent opacity-50 pointer-events-none rounded-3xl" />
 
         <button
           onClick={() => setIsMobileMenuOpen(false)}
@@ -147,6 +139,18 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
             );
           })}
         </nav>
+        <button
+          onClick={() => setIsCollapsed(!isCollapsed)}
+          className={cn(
+            "hidden md:flex items-center gap-3 rounded-2xl px-4 py-3 mx-3 mb-3 text-sm transition-all duration-500 ease-out relative group font-medium text-slate-400 hover:bg-white/[0.03] hover:text-slate-200 z-10",
+            isCollapsed && !isMobileMenuOpen ? "justify-center mx-2" : "justify-start"
+          )}
+        >
+          <div className="flex h-5 w-5 shrink-0 items-center justify-center transition-transform duration-500 ease-out group-hover:scale-105">
+            {isCollapsed ? <ChevronRight className="h-5 w-5" /> : <ChevronLeft className="h-5 w-5" />}
+          </div>
+          {(!isCollapsed || isMobileMenuOpen) && <span className="whitespace-nowrap">Collapse</span>}
+        </button>
         <div className={cn("border-t border-white/5 p-6 text-xs text-slate-500 font-medium transition-all duration-500 text-center relative z-10", isCollapsed && !isMobileMenuOpen ? "px-0" : "px-6")}>
           {(!isCollapsed || isMobileMenuOpen) ? "v1.0 · Connected" : "v1.0"}
         </div>

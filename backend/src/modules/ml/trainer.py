@@ -91,7 +91,9 @@ class Trainer:
         epochs: int = EPOCHS,
         batch_size: int = BATCH_SIZE,
         train_ratio: float = TRAIN_RATIO,
-        df: Optional[pd.DataFrame] = None
+        df: Optional[pd.DataFrame] = None,
+        progress_callback = None,
+        check_cancel_callback = None
     ) -> Tuple[LSTMModel, Dict]:
         """
         Huấn luyện một mô hình
@@ -104,6 +106,8 @@ class Trainer:
             batch_size: Batch size
             train_ratio: Tỉ lệ dữ liệu train (1.0 = train 100%)
             df: DataFrame dữ liệu trực tiếp (tùy chọn)
+            progress_callback: Hàm callback theo dõi quá trình (cuối epoch)
+            check_cancel_callback: Hàm kiểm tra lệnh hủy giữa các batch
             
         Returns:
             Tuple (model, metrics)
@@ -146,17 +150,27 @@ class Trainer:
         model = LSTMModel(lookback=lookback, n_features=n_features)
         model.build_model()
         
-        # Đường dẫn lưu model
+        # Đường dẫn lưu model tạm thời để tránh đè bản cũ nếu lỗi/hủy
         model_path = os.path.join(self.models_dir, f"{timeframe.lower()}_model.keras")
+        model_path_tmp = os.path.join(self.models_dir, f"{timeframe.lower()}_model_tmp.keras")
         
         # Train
-        train_results = model.train(
-            X_train, y_train,
-            X_test, y_test,
-            epochs=epochs,
-            batch_size=batch_size,
-            model_path=model_path
-        )
+        try:
+            train_results = model.train(
+                X_train, y_train,
+                X_test, y_test,
+                epochs=epochs,
+                batch_size=batch_size,
+                model_path=model_path_tmp,
+                progress_callback=progress_callback,
+                check_cancel_callback=check_cancel_callback
+            )
+        except Exception as e:
+            if str(e) == "TRAINING_CANCELLED":
+                if os.path.exists(model_path_tmp):
+                    os.remove(model_path_tmp)
+                print("⚠️ Đã hủy quá trình huấn luyện và xóa bản lưu tạm.")
+            raise e
         
         # Evaluate (chỉ khi có test data)
         if len(X_test) > 0:
@@ -186,8 +200,11 @@ class Trainer:
             metrics['f1_score'] = 0
             print(f"\n⚠️ Train 100% - không có validation metrics")
         
-        # Lưu model
-        model.save(model_path)
+        # Lưu model chính thức (ghi đè model cũ nếu có)
+        model.save(model_path_tmp)
+        if os.path.exists(model_path):
+            os.remove(model_path)
+        os.rename(model_path_tmp, model_path)
         
         # Lưu vào instance
         if timeframe == "H1":

@@ -226,21 +226,24 @@ async def auto_trade_start(
 
     trainer_instance = _get_trainer()
 
+    trader.lot = req.volume
     trader.start_auto_trade_thread(
         trainer=trainer_instance,
         interval=req.interval,
         model_mode=req.model_mode,
     )
     logger.info(
-        "Auto trading started: interval=%.1fs, mode=%s",
+        "Auto trading started: interval=%.1fs, mode=%s, volume=%.2f",
         req.interval,
         req.model_mode,
+        req.volume,
     )
 
     return AutoTradeStatusResponse(
         running=True,
         interval=req.interval,
         model_mode=req.model_mode,
+        volume=req.volume,
     )
 
 
@@ -273,8 +276,30 @@ async def auto_trade_status() -> AutoTradeStatusResponse:
         running=True,
         interval=getattr(trader, "_auto_trade_interval", None),
         model_mode=trader.model_mode,
+        volume=trader.lot,
     )
 
+
+# ======================================================================
+# GET /trading/auto/logs  —  Logs của Auto Trading
+# ======================================================================
+
+@router.get("/trading/auto/logs")
+async def auto_trade_logs(limit: int = Query(default=1000, ge=1, le=1000)) -> list[dict]:
+    """Lấy danh sách log mới nhất của quá trình auto-trading."""
+    trader = _get_trader()
+    return trader.get_auto_messages(limit=limit)
+
+@router.delete("/trading/auto/logs")
+async def clear_auto_trade_logs() -> dict:
+    """Xóa danh sách log của quá trình auto-trading."""
+    trader = _get_trader()
+    if hasattr(trader, 'clear_auto_messages'):
+        trader.clear_auto_messages()
+    else:
+        with trader._auto_trade_lock:
+            trader.auto_trade_messages.clear()
+    return {"status": "success", "message": "Logs cleared"}
 
 # ======================================================================
 # GET /trades  —  Lịch sử trades
@@ -289,24 +314,39 @@ async def list_trades(
     size: int = Query(default=20, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
 ) -> PaginatedResponse[TradeOut]:
-    """Lịch sử trades đã thực hiện."""
-    repo = TradeRepository(db)
+    """Lịch sử trades đã thực hiện lấy trực tiếp từ MT5."""
+    trader = _get_trader()
+    
+    # Lấy lịch sử giao dịch từ MT5 (30 ngày gần đây)
+    # Tương lai có thể thêm from_date / to_date
+    trades_data = await asyncio.to_thread(trader.get_mt5_history_trades, 30)
+    
+    # Lọc kết quả trên memory
+    filtered_trades = []
+    for t in trades_data:
+        if symbol and t['symbol'] != symbol:
+            continue
+        if direction and t['direction'] != direction:
+            continue
+        if status and t['status'] != status:
+            continue
+        filtered_trades.append(t)
+        
+    total = len(filtered_trades)
+    
+    # Phân trang
     offset = (page - 1) * size
+    paginated_trades = filtered_trades[offset:offset+size]
+    
+    # Convert sang Pydantic model (tự động mapping qua kwargs)
+    out_items = [TradeOut(**t) for t in paginated_trades]
 
-    items, total = await repo.list_trades(
-        symbol=symbol,
-        direction=direction,
-        status=status,
-        offset=offset,
-        limit=size,
-    )
-
-    return PaginatedResponse[TradeOut](
-        items=[TradeOut.model_validate(t) for t in items],
+    return PaginatedResponse(
+        items=out_items,
         total=total,
         page=page,
         size=size,
-        pages=math.ceil(total / size) if total > 0 else 0,
+        pages=(total + size - 1) // size if total > 0 else 0,
     )
 
 

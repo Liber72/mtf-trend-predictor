@@ -126,7 +126,9 @@ class LSTMModel:
         y_val: np.ndarray,
         epochs: int = EPOCHS,
         batch_size: int = BATCH_SIZE,
-        model_path: Optional[str] = None
+        model_path: Optional[str] = None,
+        progress_callback = None,
+        check_cancel_callback = None
     ) -> Dict:
         """
         Huấn luyện mô hình
@@ -139,6 +141,8 @@ class LSTMModel:
             epochs: Số epochs (mặc định 100)
             batch_size: Batch size (mặc định 32)
             model_path: Đường dẫn lưu model
+            progress_callback: Hàm callback gọi mỗi khi kết thúc 1 epoch
+            check_cancel_callback: Hàm callback gọi mỗi cuối batch để kiểm tra hủy
             
         Returns:
             Dict kết quả training
@@ -167,12 +171,28 @@ class LSTMModel:
             val_dataset = tf.data.Dataset.from_tensor_slices((X_val, y_val))
             val_dataset = val_dataset.batch(batch_size).prefetch(tf.data.AUTOTUNE)
         
+        # Chuẩn bị callbacks
+        callbacks = self.get_callbacks(model_path)
+        if progress_callback is not None or check_cancel_callback is not None:
+            class ProgressCallback(tf.keras.callbacks.Callback):
+                def on_train_batch_end(self, batch, logs=None):
+                    if check_cancel_callback is not None:
+                        should_cancel = check_cancel_callback()
+                        if should_cancel:
+                            self.model.stop_training = True
+                            raise Exception("TRAINING_CANCELLED")
+                            
+                def on_epoch_end(self, epoch, logs=None):
+                    if progress_callback is not None:
+                        progress_callback(epoch + 1, epochs, logs)
+            callbacks.append(ProgressCallback())
+
         # Train
         self.history = self.model.fit(
             train_dataset,
             validation_data=val_dataset,
             epochs=epochs,
-            callbacks=self.get_callbacks(model_path),
+            callbacks=callbacks,
             verbose=1
         )
         

@@ -45,6 +45,10 @@ type PredictionHistoryItem = {
 
 type PaginatedPredictions = {
   items: PredictionHistoryItem[];
+  total: number;
+  page: number;
+  size: number;
+  pages: number;
 };
 
 export const Route = createFileRoute("/predictions")({
@@ -56,14 +60,20 @@ function PredictionsPage() {
   const qc = useQueryClient();
   const [mode, setMode] = useState<ModelMode>("dual");
   const [filterMode, setFilterMode] = useState<string>("all");
+  const [page, setPage] = useState(1);
+  const size = 10;
   const [last, setLast] = useState<PredictionResponse | null>(null);
 
   const history = useQuery<PaginatedPredictions>({
-    queryKey: ["predictions", filterMode],
+    queryKey: ["predictions", filterMode, page, size],
     queryFn: async () =>
       (
         await http.get("/api/v1/predictions", {
-          params: filterMode !== "all" ? { model_mode: filterMode } : {},
+          params: {
+            ...(filterMode !== "all" ? { model_mode: filterMode } : {}),
+            page,
+            size,
+          },
         })
       ).data,
     retry: 0,
@@ -164,38 +174,59 @@ function PredictionsPage() {
         ) : list.length === 0 ? (
           <EmptyState title="No predictions yet" hint="Run a prediction to populate history." />
         ) : (
-          <DataTable
-            head={[
-              "When",
-              "Mode",
-              "H1",
-              "H1 prob",
-              "M5",
-              "M5 prob",
-              "Signal",
-              "Conf",
-              "Traded",
-              "Reason",
-            ]}
-            rows={list.map((p) => [
-              p.predicted_at ? new Date(p.predicted_at).toLocaleString() : "—",
-              p.model_mode,
-              p.h1_direction ?? "—",
-              fmtPct(p.h1_probability),
-              p.m5_direction ?? "—",
-              fmtPct(p.m5_probability),
-              <StatusBadge tone={signalTone(p.combined_signal)}>
-                {p.combined_signal ?? "—"}
-              </StatusBadge>,
-              fmtPct(p.combined_confidence),
-              p.trade_executed ? (
-                <StatusBadge tone="success">yes</StatusBadge>
-              ) : (
-                <StatusBadge tone="neutral">no</StatusBadge>
-              ),
-              <span className="text-muted-foreground">{p.reason ?? "—"}</span>,
-            ])}
-          />
+          <>
+            <DataTable
+              head={[
+                "When",
+                "Mode",
+                "H1",
+                "H1 prob",
+                "M5",
+                "M5 prob",
+                "Signal",
+                "Conf",
+                "Traded",
+                "Reason",
+              ]}
+              rows={list.map((p) => [
+                p.predicted_at ? new Date(p.predicted_at).toLocaleString() : "—",
+                p.model_mode,
+                p.h1_direction ?? "—",
+                fmtPct(p.h1_probability),
+                p.m5_direction ?? "—",
+                fmtPct(p.m5_probability),
+                <StatusBadge tone={signalTone(p.combined_signal)}>
+                  {p.combined_signal ?? "—"}
+                </StatusBadge>,
+                fmtPct(p.combined_confidence),
+                p.trade_executed ? (
+                  <StatusBadge tone="success">yes</StatusBadge>
+                ) : (
+                  <StatusBadge tone="neutral">no</StatusBadge>
+                ),
+                <span className="text-muted-foreground">{p.reason ?? "—"}</span>,
+              ])}
+            />
+            <div className="mt-3 flex items-center justify-end gap-2 text-xs">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={page <= 1}
+                onClick={() => setPage((p) => p - 1)}
+              >
+                Prev
+              </Button>
+              <span className="text-muted-foreground">Page {page}</span>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={list.length < size}
+                onClick={() => setPage((p) => p + 1)}
+              >
+                Next
+              </Button>
+            </div>
+          </>
         )}
       </PageSection>
     </div>
@@ -230,10 +261,10 @@ function PredCard({
   );
 }
 
-function fmtPct(n?: number) {
+function fmtPct(n?: number | null) {
   return typeof n === "number" ? (n * 100).toFixed(1) + "%" : "—";
 }
-function signalTone(s?: string): StatusTone {
+function signalTone(s?: string | null): StatusTone {
   if (!s) return "neutral";
   const u = s.toUpperCase();
   if (u === "BUY") return "success";

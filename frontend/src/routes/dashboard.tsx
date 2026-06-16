@@ -106,7 +106,6 @@ function DashboardPage() {
             health.data
               ? [
                 ["Service", health.data.service],
-                ["Env", health.data.environment],
                 ["Version", health.data.version],
                 ["Database", health.data.database],
               ]
