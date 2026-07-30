@@ -1,6 +1,8 @@
 # MTF Trend Predictor 📈🤖
 
-**MTF Trend Predictor** (Multi-Timeframe Trend Predictor) là một hệ thống giao dịch tự động trên nền tảng **MetaTrader 5 (MT5)**, sử dụng mô hình học sâu **LSTM (Long Short-Term Memory)** để dự đoán xu hướng giá. Hệ thống phân tích đồng thời 2 khung thời gian (H1 và M5) cùng với các chỉ báo kỹ thuật để đưa ra quyết định giao dịch Buy/Sell một cách chính xác nhất.
+**MTF Trend Predictor** (Multi-Timeframe Trend Predictor) là một hệ thống giao dịch tự động trên nền tảng **MetaTrader 5 (MT5)**, sử dụng mô hình học sâu **LSTM (Long Short-Term Memory)** để dự đoán xu hướng giá. Hệ thống phân tích đồng thời 2 khung thời gian (H1 và M5) cùng với các chỉ báo kỹ thuật để đưa ra quyết định giao dịch Buy/Sell một cách chính xác nhất. 
+
+**Kết quả thử nghiệm mô hình tham khảo Test_reamtime.pdf**
 
 ## 🌟 Tính năng nổi bật
 
@@ -10,26 +12,6 @@
 - **Quản lý rủi ro nâng cao**: Tích hợp tính năng Trailing Stop Loss linh hoạt bên cạnh Stop Loss (SL) và Take Profit (TP) cố định.
 - **FastAPI Backend (Mới)**: Kiến trúc Modular Monolith với REST API chuẩn, PostgreSQL, và WebSockets cho khả năng mở rộng.
 - **Bảng điều khiển trực quan (Dashboard)**: Quản lý toàn bộ hệ thống bằng giao diện người dùng **Streamlit**.
-
-## 📁 Cấu trúc Dự án
-
-```text
-├── src/
-│   ├── main.py              # FastAPI app bootstrap (Backend)
-│   ├── apps/
-│   │   ├── api/             # REST API routes (Market Data, Models, Trading, WebSockets)
-│   │   └── dashboard/       # Streamlit Dashboard UI
-│   ├── core/                # Settings, Constants, Errors, Logging
-│   ├── infrastructure/      # Database (SQLAlchemy, PostgreSQL), Repositories, Middleware
-│   └── modules/             # Business Logic (ML, Trading, Market Data, Features)
-├── alembic/                 # Database migrations (Alembic)
-├── models/                  # Nơi lưu trữ TensorFlow .keras models và scalers
-├── data/                    # Nơi lưu CSV market data
-├── Dockerfile               # Docker cho FastAPI & PostgreSQL
-├── docker-compose.yml       # Docker Compose setup
-├── .env                     # Biến môi trường
-└── requirements.txt         # Phụ thuộc Python
-```
 
 ## ⚙️ Yêu cầu Hệ thống
 
@@ -89,6 +71,3 @@ streamlit run src/apps/dashboard/app.py
 - `POST /api/v1/trading/auto/start`: Kích hoạt Bot giao dịch tự động
 - `WS /api/v1/ws/trades`: WebSocket stream log giao dịch realtime
 
-## ⚠️ Lưu ý Cảnh báo rủi ro (Disclaimer)
-
-Dự án này là một công cụ nghiên cứu kiểm thử tín hiệu AI và hỗ trợ giao dịch, **KHÔNG ĐƯỢC XEM LÀ LỜI KHUYÊN HAY CHỈ ĐỊNH ĐẦU TƯ TÀI CHÍNH**. Giao dịch tài chính đòn bẩy cao (đặc biệt là Forex, Gold) rủi ro cực lớn. **Hãy thử nghiệm kỹ lưỡng ở tài khoản DEMO** trước khi quyết định cấp bất cứ quyền giao dịch thực tới bot trên môi trường tiền thật (Real).
