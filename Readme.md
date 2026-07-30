@@ -3,6 +3,7 @@
 **MTF Trend Predictor** (Multi-Timeframe Trend Predictor) là một hệ thống giao dịch tự động trên nền tảng **MetaTrader 5 (MT5)**, sử dụng mô hình học sâu **LSTM (Long Short-Term Memory)** để dự đoán xu hướng giá. Hệ thống phân tích đồng thời 2 khung thời gian (H1 và M5) cùng với các chỉ báo kỹ thuật để đưa ra quyết định giao dịch Buy/Sell một cách chính xác nhất. 
 
 **Kết quả thử nghiệm mô hình tham khảo Test_reamtime.pdf**
+Kết quả thử nghiệm mô hình: Winrate 64,36%(428/653), Average Profit: 57.96$, Netto P/L: 14 284.32
 
 ## 🌟 Tính năng nổi bật
 
