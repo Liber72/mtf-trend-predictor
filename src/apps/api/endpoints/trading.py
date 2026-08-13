@@ -24,6 +24,9 @@ from src.apps.api.schemas.trade import (
     MT5PositionOut,
     MT5StatusResponse,
     TradeOut,
+    TrailingLevelItem,
+    TrailingStartRequest,
+    TrailingStatusResponse,
 )
 from src.core.dependencies import get_db
 from src.infrastructure.db.repositories.trade_repo import TradeRepository
@@ -273,6 +276,72 @@ async def auto_trade_status() -> AutoTradeStatusResponse:
         running=True,
         interval=getattr(trader, "_auto_trade_interval", None),
         model_mode=trader.model_mode,
+    )
+
+
+# ======================================================================
+# POST /trading/trailing/start  —  Bật trailing SL
+# ======================================================================
+
+@router.post("/trading/trailing/start", response_model=TrailingStatusResponse)
+async def trailing_start(
+    req: TrailingStartRequest | None = None,
+) -> TrailingStatusResponse:
+    """Bật trailing stop loss.
+
+    Nếu gửi levels thì cập nhật mức trailing mới, không gửi thì dùng mặc định.
+    """
+    trader = _get_trader()
+
+    if not trader.connected:
+        raise HTTPException(status_code=422, detail="Chưa kết nối MT5")
+
+    # Cập nhật levels nếu có
+    if req and req.levels:
+        trader.trailing_sl_levels = [
+            (lv.trigger_pips, lv.sl_pips) for lv in req.levels
+        ]
+
+    trader.start_trailing_thread()
+    logger.info("Trailing SL started, levels=%s", trader.trailing_sl_levels)
+
+    return TrailingStatusResponse(
+        running=True,
+        levels=[
+            TrailingLevelItem(trigger_pips=t, sl_pips=s)
+            for t, s in trader.trailing_sl_levels
+        ],
+    )
+
+
+# ======================================================================
+# POST /trading/trailing/stop  —  Tắt trailing SL
+# ======================================================================
+
+@router.post("/trading/trailing/stop", response_model=TrailingStatusResponse)
+async def trailing_stop() -> TrailingStatusResponse:
+    """Tắt trailing stop loss."""
+    trader = _get_trader()
+    trader.stop_trailing_thread()
+    logger.info("Trailing SL stopped")
+    return TrailingStatusResponse(running=False)
+
+
+# ======================================================================
+# GET /trading/trailing/status  —  Trạng thái trailing SL
+# ======================================================================
+
+@router.get("/trading/trailing/status", response_model=TrailingStatusResponse)
+async def trailing_status() -> TrailingStatusResponse:
+    """Lấy trạng thái trailing SL."""
+    trader = _get_trader()
+
+    return TrailingStatusResponse(
+        running=trader._trailing_thread_running,
+        levels=[
+            TrailingLevelItem(trigger_pips=t, sl_pips=s)
+            for t, s in trader.trailing_sl_levels
+        ],
     )
 
 

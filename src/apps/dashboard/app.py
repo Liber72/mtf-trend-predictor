@@ -13,6 +13,7 @@ from src.core.constants import (
     MAX_POSITIONS, MIN_CONFIDENCE,
     AUTO_TRADE_INTERVAL, UI_REFRESH_INTERVAL,
     MODEL_MODE_DUAL, MODEL_MODE_SINGLE_M5, DEFAULT_MODEL_MODE,
+    DEFAULT_TRAILING_SL_LEVELS,
 )
 from src.apps.dashboard.api_client import APIClient
 
@@ -92,6 +93,7 @@ def main():
     # Lấy trạng thái hiện tại từ backend
     mt5_status = APIClient.mt5_status()
     auto_status = APIClient.get_auto_trade_status()
+    trailing_status = APIClient.get_trailing_status()
     db_models = APIClient.get_models().get("items", [])
     
     h1_active = any(m for m in db_models if m["timeframe"] == "H1" and m["is_active"])
@@ -99,6 +101,7 @@ def main():
     
     is_connected = mt5_status.get("connected", False)
     is_auto_trading = auto_status.get("running", False)
+    is_trailing = trailing_status.get("running", False)
 
     # Sidebar
     with st.sidebar:
@@ -148,6 +151,33 @@ def main():
         if is_auto_trading:
             st.success("Bot đang chạy...")
             
+        st.divider()
+        
+        # Trailing Stop Loss
+        st.subheader("📐 Trailing SL")
+        
+        col_t1, col_t2 = st.columns(2)
+        with col_t1:
+            if st.button("Bật TSL", type="primary", disabled=is_trailing or not is_connected):
+                APIClient.start_trailing()
+                st.rerun()
+        with col_t2:
+            if st.button("Tắt TSL", disabled=not is_trailing):
+                APIClient.stop_trailing()
+                st.rerun()
+        
+        if is_trailing:
+            st.success("Trailing SL đang chạy")
+            levels = trailing_status.get("levels", [])
+            if levels:
+                level_text = " | ".join(
+                    f"+{lv['trigger_pips']:.0f}p→SL {lv['sl_pips']:.0f}p"
+                    for lv in levels
+                )
+                st.caption(f"Mức: {level_text}")
+        else:
+            st.caption("Trailing SL đang tắt")
+        
         st.divider()
         
         # Training

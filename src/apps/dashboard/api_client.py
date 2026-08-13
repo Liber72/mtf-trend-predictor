@@ -112,3 +112,21 @@ class APIClient:
             "model_mode": model_mode
         })
         return resp.json()
+
+    @staticmethod
+    def start_trailing(levels: list[dict] | None = None) -> dict[str, Any]:
+        payload = {}
+        if levels:
+            payload["levels"] = levels
+        resp = requests.post(f"{API_URL}/trading/trailing/start", json=payload if payload else None)
+        return resp.json()
+
+    @staticmethod
+    def stop_trailing() -> dict[str, Any]:
+        resp = requests.post(f"{API_URL}/trading/trailing/stop")
+        return resp.json()
+
+    @staticmethod
+    def get_trailing_status() -> dict[str, Any]:
+        resp = requests.get(f"{API_URL}/trading/trailing/status")
+        return resp.json()

@@ -119,3 +119,27 @@ class AutoTradeStatusResponse(BaseModel):
     running: bool
     interval: float | None = None
     model_mode: str | None = None
+
+
+# ---------------------------------------------------------------------------
+# Trailing Stop Loss
+# ---------------------------------------------------------------------------
+
+class TrailingLevelItem(BaseModel):
+    """Một mức trailing SL: khi lời >= trigger_pips thì dời SL về sl_pips."""
+    trigger_pips: float = Field(description="Số pips lời để kích hoạt mức này")
+    sl_pips: float = Field(description="Dời SL về vị trí này (tính từ giá entry)")
+
+
+class TrailingStartRequest(BaseModel):
+    """Request body để bật trailing SL."""
+    levels: list[TrailingLevelItem] | None = Field(
+        default=None,
+        description="Các mức trailing. None = dùng mặc định",
+    )
+
+
+class TrailingStatusResponse(BaseModel):
+    """Trạng thái trailing SL."""
+    running: bool
+    levels: list[TrailingLevelItem] = Field(default_factory=list)
